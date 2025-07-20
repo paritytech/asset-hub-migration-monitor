@@ -9,6 +9,8 @@ import { Log } from './logging/Log';
 import { updatesHandler } from './routes/updates';
 import { SubscriptionManager } from './util/SubscriptionManager';
 import { RuntimeManager } from './util/RuntimeManager';
+import { FinalizedService } from './services/finalizedService';
+import { BlockProcessor } from './services/BlockProcessor';
 
 const app = express();
 const port = getConfig().port;
@@ -44,12 +46,28 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+// Queue status endpoint to monitor BlockProcessor queue growth
+app.get('/api/queue-status', (_req: Request, res: Response) => {
+  const blockProcessor = BlockProcessor.getInstance();
+  const finalizedService = FinalizedService.getInstance();
+  
+  res.json({
+    queues: blockProcessor.getQueueStatus(),
+    subscriptions: finalizedService.getStatus(),
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Consolidated SSE endpoint
 app.get('/api/updates', updatesHandler);
 
 
 const main = async () => {
   const subManager = SubscriptionManager.getInstance();
+  const finalizedService = FinalizedService.getInstance();
+
+  // Start finalized head subscriptions
+  await finalizedService.start();
 
   await subManager.initRcPreMigrationService();
   await subManager.checkCurrentMigrationStageInDB();
@@ -64,6 +82,7 @@ const main = async () => {
         details: { signal },
       });
 
+      await finalizedService.stop();
       await subManager.cleanupAllSubs();
 
 
