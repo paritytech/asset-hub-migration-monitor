@@ -1,10 +1,12 @@
 import { Log } from '../logging/Log';
+import { AbstractApi } from './abstractApi';
 
 interface QueueItem {
   blockNumber: number;
-  blockHash: string;
+  blockHash: string | null;
   chain: 'relay-chain' | 'asset-hub';
   processed: boolean;
+  timestamp?: number; // On-chain timestamp in milliseconds
 }
 
 export class BlockProcessor {
@@ -63,7 +65,7 @@ export class BlockProcessor {
       for (let missingBlock = lastBlock + 1; missingBlock < blockNumber; missingBlock++) {
         chainQueue.push({
           blockNumber: missingBlock,
-          blockHash: '', // Will need to be fetched later
+          blockHash: null,
           chain,
           processed: false
         });
@@ -173,27 +175,84 @@ export class BlockProcessor {
       }
     });
 
-    // TODO: Implement actual block processing logic
-    // - Fetch block events
-    // - Check for migration-related events
-    // - Update database
-    // - Emit events for frontend
-    
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 100));
+    try {
+      // Get the appropriate API instance
+      const abstractApi = AbstractApi.getInstance();
+      const api = item.chain === 'asset-hub' 
+        ? await abstractApi.getAssetHubApi()
+        : await abstractApi.getRelayChainApi();
+
+      
+      let blockHash = item.blockHash;
+      if (!blockHash) {
+        blockHash = (await api.rpc.chain.getBlockHash(item.blockNumber)).toHex();
+      }
+
+      const apiAt = await api.at(blockHash);
+      // Query the on-chain timestamp at this block
+      const timestampMoment = await apiAt.query.timestamp.now();
+      const timestamp = timestampMoment.toNumber(); // Convert from Moment to number (milliseconds)
+      
+      // Store timestamp in the item
+      item.timestamp = timestamp;
+
+      Log.service({
+        service: 'Block Processor',
+        action: 'Block timestamp retrieved',
+        details: { 
+          chain: item.chain, 
+          blockNumber: item.blockNumber,
+          timestamp,
+          timestampDate: new Date(timestamp).toISOString()
+        }
+      });
+
+      // TODO: Implement actual block processing logic
+      // - Fetch block events
+      // - Check for migration-related events
+      // - Update database
+      // - Emit events for frontend
+      
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error querying block timestamp',
+        error: error as Error,
+        details: { 
+          chain: item.chain, 
+          blockNumber: item.blockNumber,
+          blockHash: item.blockHash
+        }
+      });
+      // Continue processing even if timestamp query fails
+    }
   }
 
-  public getQueueStatus(): { [chain: string]: { length: number, processing: boolean, lastBlock: number } } {
+  public getQueueStatus(): { [chain: string]: { length: number, processing: boolean, lastBlock: number, latestTimestamp?: number } } {
+    const getLatestTimestamp = (chain: string) => {
+      const chainQueue = this.queue.get(chain)!;
+      if (chainQueue.length === 0) return undefined;
+      
+      // Find the latest processed block with a timestamp
+      const processedWithTimestamp = chainQueue
+        .filter(item => item.processed && item.timestamp)
+        .sort((a, b) => b.blockNumber - a.blockNumber);
+      
+      return processedWithTimestamp.length > 0 ? processedWithTimestamp[0].timestamp : undefined;
+    };
+
     return {
       'relay-chain': {
         length: this.queue.get('relay-chain')!.length,
         processing: this.processing.get('relay-chain')!,
-        lastBlock: this.lastBlockNumber.get('relay-chain')!
+        lastBlock: this.lastBlockNumber.get('relay-chain')!,
+        latestTimestamp: getLatestTimestamp('relay-chain')
       },
       'asset-hub': {
         length: this.queue.get('asset-hub')!.length,
         processing: this.processing.get('asset-hub')!,
-        lastBlock: this.lastBlockNumber.get('asset-hub')!
+        lastBlock: this.lastBlockNumber.get('asset-hub')!,
+        latestTimestamp: getLatestTimestamp('asset-hub')
       }
     };
   }
