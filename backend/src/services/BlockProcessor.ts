@@ -1,12 +1,25 @@
-import { Vec } from '@polkadot/types';
-import { FrameSystemEventRecord } from '@polkadot/types/lookup';
-import { Event } from '@polkadot/types/interfaces';
+import type { u32, Vec } from '@polkadot/types';
+import type { FrameSystemEventRecord } from '@polkadot/types/lookup';
+import type { Event } from '@polkadot/types/interfaces';
+import type { ApiDecoration } from '@polkadot/api/types';
+import type { ITuple } from '@polkadot/types/types';
+import type { PolkadotCorePrimitivesInboundDownwardMessage } from '@polkadot/types/lookup';
+import type { PalletRcMigratorMigrationStage } from '../types/pjs';
 
 import { db } from '../db';
+import { eq, desc, and } from 'drizzle-orm';
 import { Log } from '../logging/Log';
 import { AbstractApi } from './abstractApi';
+import { eventService } from './eventService';
 import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
-import { messageProcessingEventsRC } from '../db/schema';
+import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
+import { PalletMigrationCache } from './cache/PalletMigrationCache';
+import { TimeInStageCache } from './cache/TimeInStageCache';
+import { SubscriptionManager } from '../util/SubscriptionManager';
+import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents } from '../db/schema';
+import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
+
+// TODO: Ensure we handle migration stages correctly.
 
 interface QueueItem {
   blockNumber: number;
@@ -241,7 +254,7 @@ export class BlockProcessor {
   /**
    * Process Asset Hub specific block data
    */
-  private async processAssetHubBlock(item: QueueItem, apiAt: any, events: Vec<FrameSystemEventRecord>): Promise<void> {
+  private async processAssetHubBlock(item: QueueItem, apiAt: ApiDecoration<"promise">, events: Vec<FrameSystemEventRecord>): Promise<void> {
     Log.service({
       service: 'Block Processor',
       action: 'Processing Asset Hub block',
@@ -252,7 +265,11 @@ export class BlockProcessor {
     });
 
     try {
+      // Query Asset Hub specific storage
+      await this.processAssetHubStorage(apiAt, item);
+
       // Process Asset Hub specific events
+      let foundMessageQueueProcessed = false;
       for (const record of events) {
         const { event } = record;
         
@@ -263,6 +280,12 @@ export class BlockProcessor {
         
         // Handle messageQueue.Processed events (DMP latency)
         if (event.section === 'messageQueue' && event.method === 'Processed') {
+          // We only need to find the first messageQueue::Processed
+          if (foundMessageQueueProcessed) {
+            continue;
+          } else  {
+            foundMessageQueueProcessed = true;
+          }
           await this.handleAssetHubMessageQueueProcessed(event, item);
         }
         
@@ -271,9 +294,6 @@ export class BlockProcessor {
           await this.handleAssetHubUpwardMessageSent(event, item);
         }
       }
-
-      // Query Asset Hub specific storage
-      await this.processAssetHubStorage(apiAt, item);
 
     } catch (error) {
       Log.service({
@@ -288,7 +308,7 @@ export class BlockProcessor {
   /**
    * Process Relay Chain specific block data
    */
-  private async processRelayChainBlock(item: QueueItem, apiAt: any, events: Vec<FrameSystemEventRecord>): Promise<void> {
+  private async processRelayChainBlock(item: QueueItem, apiAt: ApiDecoration<"promise">, events: Vec<FrameSystemEventRecord>): Promise<void> {
     Log.service({
       service: 'Block Processor',
       action: 'Processing Relay Chain block',
@@ -299,6 +319,9 @@ export class BlockProcessor {
     });
 
     try {
+      // Query Relay Chain specific storage
+      await this.processRelayChainStorage(apiAt, item);
+
       // Process Relay Chain specific events
       for (const record of events) {
         const { event } = record;
@@ -308,10 +331,6 @@ export class BlockProcessor {
           await this.handleRelayChainMessageQueueProcessed(event, item);
         }
       }
-
-      // Query Relay Chain specific storage
-      await this.processRelayChainStorage(apiAt, item);
-
     } catch (error) {
       Log.service({
         service: 'Block Processor',
@@ -325,34 +344,152 @@ export class BlockProcessor {
   /**
    * Asset Hub event handlers
    */
-  private async handleAssetHubBatchProcessed(event: any, item: QueueItem): Promise<void> {
-    Log.chainEvent({
-      chain: 'asset-hub',
-      eventType: 'BatchProcessed',
-      blockNumber: item.blockNumber,
-      details: { eventData: event.toJSON() }
-    });
-    // TODO: Implement batch processing logic from ahService
+  private async handleAssetHubBatchProcessed(event: Event, item: QueueItem): Promise<void> {
+    try {
+      const palletName = event.data[0].toString(); // This is the pallet.
+      const itemsProcessed = parseInt(event.data[1].toString()); // This is the items processed.
+      const itemsFailed = parseInt(event.data[2].toString()); // This is the items failed.
+      // Handle the special case where "Balances" pallet refers to "Accounts" stage
+      const targetPallet = palletName === 'Balances' ? 'Accounts' : palletName;
+      const currentStageName = getCurrentStageForPallet(targetPallet);
+
+      if (!currentStageName) {
+        Log.chainEvent({
+          chain: 'asset-hub',
+          eventType: 'BatchProcessed - unknown pallet',
+          details: { palletName, targetPallet },
+        });
+        return;
+      }
+
+      const currentStage = await db.query.migrationStages.findFirst({
+        where: eq(migrationStages.stage, currentStageName),
+        orderBy: [desc(migrationStages.timestamp)],
+      });
+
+      if (!currentStage) {
+        Log.chainEvent({
+          chain: 'asset-hub',
+          eventType: 'BatchProcessed - stage not found',
+          details: { palletName, targetPallet, currentStageName },
+        });
+
+        return;
+      }
+
+      const existingCounter = await db.query.palletMigrationCounters.findFirst({
+        where: and(
+          eq(palletMigrationCounters.palletName, targetPallet),
+          eq(palletMigrationCounters.stageId, currentStage!.id)
+        ),
+      });
+
+      if (existingCounter) {
+        // Update existing counter
+        await db
+          .update(palletMigrationCounters)
+          .set({
+            itemsProcessed: existingCounter.itemsProcessed + itemsProcessed,
+            failedItems: existingCounter.failedItems + itemsFailed,
+            lastUpdated: new Date(),
+          })
+          .where(eq(palletMigrationCounters.id, existingCounter.id));
+      } else {
+        // Create new counter
+        await db.insert(palletMigrationCounters).values({
+          palletName: targetPallet,
+          stageId: currentStage.id,
+          itemsProcessed,
+          totalItems: 0, // We don't know the total yet
+          failedItems: itemsFailed,
+          lastUpdated: new Date(),
+        });
+      }
+
+      // Add to pallet migration cache for event emission
+      const palletMigrationCache = PalletMigrationCache.getInstance();
+      palletMigrationCache.addBatchData(targetPallet, itemsProcessed, itemsFailed);
+
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'BatchProcessed',
+        details: {
+          palletName,
+          targetPallet,
+          currentStageName,
+          itemsProcessed,
+          itemsFailed,
+          stageId: currentStage.id,
+        },
+      });
+
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'BatchProcessed',
+        blockNumber: item.blockNumber,
+        details: { eventData: event.toJSON() }
+      });
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'BatchProcessed processing error',
+        error: error as Error,
+        details: {
+          eventData: event.toJSON(),
+        },
+      });
+    }
   }
 
-  private async handleAssetHubMessageQueueProcessed(event: any, item: QueueItem): Promise<void> {
-    Log.chainEvent({
-      chain: 'asset-hub',
-      eventType: 'MessageQueue.Processed',
-      blockNumber: item.blockNumber,
-      details: { eventData: event.toJSON() }
-    });
-    // TODO: Implement DMP latency tracking
+  private async handleAssetHubMessageQueueProcessed(event: Event, item: QueueItem): Promise<void> {
+    try {
+      const dmpLatencyProcessor = DmpLatencyProcessor.getInstance();
+      dmpLatencyProcessor.addMessageQueueProcessed(new Date(item.timestamp!));
+
+      await db.insert(messageProcessingEventsAH).values({
+        timestamp: new Date(),
+      });
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'MessageQueue.Processed',
+        blockNumber: item.blockNumber,
+        details: { eventData: event.toJSON() }
+      });
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'MessageQueue.Processed database error',
+        error: error as Error,
+      });
+    }
   }
 
-  private async handleAssetHubUpwardMessageSent(event: any, item: QueueItem): Promise<void> {
-    Log.chainEvent({
-      chain: 'asset-hub',
-      eventType: 'UpwardMessageSent',
-      blockNumber: item.blockNumber,
-      details: { eventData: event.toJSON() }
-    });
-    // TODO: Implement UMP tracking
+  private async handleAssetHubUpwardMessageSent(event: Event, item: QueueItem): Promise<void> {
+    try {
+      // Add to latency processor
+      const umpLatencyProcessor = UmpLatencyProcessor.getInstance();
+      umpLatencyProcessor.addUpwardMessageSent(new Date(item.timestamp!));
+
+      await db.insert(upwardMessageSentEvents).values({
+        timestamp: new Date(item.timestamp!),
+      });
+
+      eventService.emit('upwardMessageSent', {
+        timestamp: new Date(item.timestamp!).toISOString(),
+      });
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'UpwardMessageSent',
+        blockNumber: item.blockNumber,
+        details: { eventData: event.toJSON() }
+      });
+    } catch (error) {
+      Log.chainEvent({  
+        chain: 'asset-hub',
+        eventType: 'UpwardMessageSent database error',
+        error: error as Error,
+      });
+    }
   }
 
   /**
@@ -411,8 +548,15 @@ export class BlockProcessor {
   /**
    * Relay Chain storage queries
    */
-  private async processRelayChainStorage(apiAt: any, item: QueueItem): Promise<void> {
+  private async processRelayChainStorage(apiAt: ApiDecoration<"promise">, item: QueueItem): Promise<void> {
     try {
+      const [migrationStage, dmpMessageCount, dmpMessageQueue] = await Promise.all([
+        apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
+        apiAt.query.rcMigrator.dmpDataMessageCounts<ITuple<[u32, u32]>>(),
+        apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>()
+      ]);
+
+      await this.handleRcMigrationStage(migrationStage, item);
       // TODO: Query Relay Chain specific storage:
       // - rcMigrator.rcMigrationStage
       // - rcMigrator.dmpDataMessageCounts
@@ -429,6 +573,64 @@ export class BlockProcessor {
         action: 'Error querying Relay Chain storage',
         error: error as Error,
         details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  private async handleRcMigrationStage(migrationStage: PalletRcMigratorMigrationStage, item: QueueItem) {
+    const timeInStageCache = TimeInStageCache.getInstance();
+
+    try {
+      const currentStage = migrationStage.type;
+
+      await db.insert(migrationStages).values({
+        stage: currentStage,
+        chain: 'relay-chain',
+        details: JSON.stringify(migrationStage.toJSON()),
+        scheduledBlockNumber: migrationStage.isScheduled ? migrationStage.asScheduled.blockNumber.toNumber() : undefined,
+      });
+
+      if (migrationStage.isScheduled) {
+        const subManager = SubscriptionManager.getInstance();
+        subManager.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
+      }
+
+      const isNewStage = await timeInStageCache.recordStageStart(currentStage);
+      const palletName = getPalletFromStage(currentStage);
+      const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
+
+      eventService.emit('rcStageUpdate', {
+        stage: currentStage,
+        chain: 'relay-chain',
+        details: migrationStage.toJSON(),
+        timestamp: new Date(item.timestamp!).toISOString(),
+        palletName: palletName || null,
+        scheduledBlockNumber: migrationStage.isScheduled ? migrationStage.asScheduled.blockNumber.toNumber() : null,
+        palletInitStartedAt: palletInfo?.initStartedAt || null,
+        timeInPallet: palletInfo?.timeInPallet || null,
+        isNewStage,
+        isPalletCompleted: palletInfo?.isCompleted || false,
+        palletTotalDuration: palletInfo?.totalDuration || null,
+        currentPalletStage: palletInfo?.currentStage || null,
+      });
+
+      Log.chainEvent({
+        chain: 'relay-chain',
+        eventType: 'migration stage update',
+        details: { 
+          stage: currentStage,
+          palletName,
+          isNewStage,
+          timeInPallet: palletInfo?.timeInPallet || null,
+          isPalletCompleted: palletInfo?.isCompleted || false,
+          scheduledBlockNumber: migrationStage.isScheduled ? migrationStage.asScheduled.blockNumber.toNumber() : null,
+        },
+      });
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'relay-chain',
+        eventType: 'migration stage processing error',
+        error: error as Error,
       });
     }
   }
