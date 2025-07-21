@@ -16,7 +16,7 @@ import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
 import { TimeInStageCache } from './cache/TimeInStageCache';
 import { SubscriptionManager } from '../util/SubscriptionManager';
-import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents, xcmMessageCounters } from '../db/schema';
+import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents, xcmMessageCounters, dmpQueueEvents } from '../db/schema';
 import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
 
 // TODO: Ensure we handle migration stages correctly.
@@ -34,6 +34,7 @@ export class BlockProcessor {
   private queue: Map<string, QueueItem[]> = new Map();
   private processing: Map<string, boolean> = new Map();
   private lastBlockNumber: Map<string, number> = new Map();
+  private previousDmpQueueSize: number = 0;
 
   private constructor() {
     // Initialize queues for both chains
@@ -553,13 +554,13 @@ export class BlockProcessor {
       const [migrationStage, dmpMessageCount, dmpMessageQueue] = await Promise.all([
         apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
         apiAt.query.rcMigrator.dmpDataMessageCounts<ITuple<[u32, u32]>>(),
-        apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>()
+        apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(1000)
       ]);
 
+      // TODO: Is there specific ordering to this or can we put it in a Promise.all?
       await this.handleRcMigrationStage(migrationStage, item);
       await this.handleRcDmpDataMessageCounts(dmpMessageCount, item);
-      // TODO: Query Relay Chain specific storage:
-      // - dmp.downwardMessageQueues
+      await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
       
       Log.service({
         service: 'Block Processor',
@@ -572,6 +573,68 @@ export class BlockProcessor {
         action: 'Error querying Relay Chain storage',
         error: error as Error,
         details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  private async handleRcDownwardMessageQueues(dmpMessageQueue: Vec<PolkadotCorePrimitivesInboundDownwardMessage>, item: QueueItem) {
+    const dmpLatencyProcessor = DmpLatencyProcessor.getInstance();
+    try {
+      const currentQueueSize = dmpMessageQueue.length;
+      // Calculate exact total size in bytes by summing encoded lengths
+      let totalSizeBytes = 0;
+      for (const message of dmpMessageQueue) {
+        totalSizeBytes += message.msg.encodedLength;
+      }
+
+      // Determine event type based on size change
+      let eventType = 'no_change';
+      if (currentQueueSize > this.previousDmpQueueSize) {
+        eventType = 'fill';
+      } else if (currentQueueSize < this.previousDmpQueueSize) {
+        eventType = currentQueueSize === 0 ? 'drain' : 'partial_drain';
+      }
+
+      if (eventType !== 'no_change') {
+        const timestamp = new Date(item.timestamp!);
+
+        await db.insert(dmpQueueEvents).values({
+          queueSize: currentQueueSize,
+          totalSizeBytes,
+          eventType,
+          timestamp,
+        });
+
+        // Add fill events to latency processor
+        if (eventType === 'fill') {
+          dmpLatencyProcessor.addFillMessageSent(timestamp);
+        }
+
+        // Emit event for frontend
+        eventService.emit('dmpQueueEvent', {
+          queueSize: currentQueueSize,
+          totalSizeBytes,
+          eventType,
+          timestamp: timestamp.toISOString(),
+        });
+
+        Log.chainEvent({
+          chain: 'relay-chain',
+          eventType: `DMP queue ${eventType}`,
+          details: {
+            queueSize: currentQueueSize,
+            totalSizeBytes,
+            previousSize: this.previousDmpQueueSize,
+            change: currentQueueSize - this.previousDmpQueueSize,
+          },
+        });
+      }
+      this.previousDmpQueueSize = currentQueueSize;
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'relay-chain',
+        eventType: 'DMP queue processing error',
+        error: error as Error,
       });
     }
   }
