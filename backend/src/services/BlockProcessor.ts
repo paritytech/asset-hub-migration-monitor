@@ -620,7 +620,7 @@ export class BlockProcessor {
     item: QueueItem
   ) {
     try {
-      const [_, erroredOnAh] = dmpDataMessageCounts;
+      const [, erroredOnAh] = dmpDataMessageCounts;
       await db
         .update(xcmMessageCounters)
         .set({
