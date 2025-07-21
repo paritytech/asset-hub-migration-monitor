@@ -16,7 +16,7 @@ import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
 import { TimeInStageCache } from './cache/TimeInStageCache';
 import { SubscriptionManager } from '../util/SubscriptionManager';
-import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents } from '../db/schema';
+import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents, xcmMessageCounters } from '../db/schema';
 import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
 
 // TODO: Ensure we handle migration stages correctly.
@@ -557,9 +557,8 @@ export class BlockProcessor {
       ]);
 
       await this.handleRcMigrationStage(migrationStage, item);
+      await this.handleRcDmpDataMessageCounts(dmpMessageCount, item);
       // TODO: Query Relay Chain specific storage:
-      // - rcMigrator.rcMigrationStage
-      // - rcMigrator.dmpDataMessageCounts
       // - dmp.downwardMessageQueues
       
       Log.service({
@@ -573,6 +572,98 @@ export class BlockProcessor {
         action: 'Error querying Relay Chain storage',
         error: error as Error,
         details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  private async handleRcDmpDataMessageCounts(dmpMessageCount: ITuple<[u32, u32]>, item: QueueItem) {
+    try {
+      const [sentToAh, processedOnAh] = dmpMessageCount;
+
+      await db
+        .update(xcmMessageCounters)
+        .set({
+          messagesSent: sentToAh.toNumber(),
+          lastUpdated: new Date(item.timestamp!),
+        })
+        .where(eq(xcmMessageCounters.sourceChain, 'relay-chain'));
+
+      await db
+        .update(xcmMessageCounters)
+        .set({
+          messagesProcessed: processedOnAh.toNumber(),
+          lastUpdated: new Date(item.timestamp!),
+        })
+        .where(eq(xcmMessageCounters.sourceChain, 'asset-hub'));
+          
+      // Get the updated counter
+      const counterRc = await db.query.xcmMessageCounters.findFirst({
+        where: (counters, { eq }) => eq(counters.sourceChain, 'relay-chain'),
+      });
+
+      // Get the updated counter
+      const counterAh = await db.query.xcmMessageCounters.findFirst({
+        where: (counters, { eq }) => eq(counters.sourceChain, 'asset-hub'),
+      });
+
+      if (counterRc) {
+        const eventData = {
+          sourceChain: counterRc.sourceChain,
+          destinationChain: counterRc.destinationChain,
+          messagesSent: counterRc.messagesSent,
+          messagesProcessed: counterRc.messagesProcessed,
+          messagesFailed: counterRc.messagesFailed,
+          lastUpdated: counterRc.lastUpdated,
+        };
+
+        Log.service({
+          service: 'XCM Message Counter',
+          action: 'Emitting rcXcmMessageCounter event',
+          details: eventData,
+        });
+        eventService.emit('rcXcmMessageCounter', eventData);
+      } else {
+        Log.service({
+          service: 'XCM Message Counter',
+          action: 'No RC counter found after update',
+          details: { sourceChain: 'relay-chain' },
+        });
+      }
+
+      if (counterAh) {
+        const eventData = {
+          sourceChain: counterAh.sourceChain,
+          destinationChain: counterAh.destinationChain,
+          messagesSent: counterAh.messagesSent,
+          messagesProcessed: counterAh.messagesProcessed,
+          messagesFailed: counterAh.messagesFailed,
+          lastUpdated: counterAh.lastUpdated,
+        };
+
+        Log.service({
+          service: 'XCM Message Counter',
+          action: 'Emitting ahXcmMessageCounter event',
+          details: eventData,
+        });
+        eventService.emit('ahXcmMessageCounter', eventData);
+      } else {
+        Log.service({
+          service: 'XCM Message Counter',
+          action: 'No AH counter found after update',
+          details: { sourceChain: 'asset-hub' },
+        });
+      }
+
+      Log.service({
+        service: 'XCM Message Counter',
+        action: 'Updated counters',
+        details: { sentToAh, processedOnAh },
+      });
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'relay-chain',
+        eventType: 'XCM message processing error',
+        error: error as Error,
       });
     }
   }
