@@ -1,5 +1,12 @@
+import { Vec } from '@polkadot/types';
+import { FrameSystemEventRecord } from '@polkadot/types/lookup';
+import { Event } from '@polkadot/types/interfaces';
+
+import { db } from '../db';
 import { Log } from '../logging/Log';
 import { AbstractApi } from './abstractApi';
+import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
+import { messageProcessingEventsRC } from '../db/schema';
 
 interface QueueItem {
   blockNumber: number;
@@ -190,10 +197,12 @@ export class BlockProcessor {
 
       const apiAt = await api.at(blockHash);
       // Query the on-chain timestamp at this block
-      const timestampMoment = await apiAt.query.timestamp.now();
+      const [timestampMoment, events] = await Promise.all([
+        apiAt.query.timestamp.now(),
+        apiAt.query.system.events()
+      ])
+
       const timestamp = timestampMoment.toNumber(); // Convert from Moment to number (milliseconds)
-      
-      // Store timestamp in the item
       item.timestamp = timestamp;
 
       Log.service({
@@ -207,11 +216,12 @@ export class BlockProcessor {
         }
       });
 
-      // TODO: Implement actual block processing logic
-      // - Fetch block events
-      // - Check for migration-related events
-      // - Update database
-      // - Emit events for frontend
+      // Delegate to chain-specific processing
+      if (item.chain === 'asset-hub') {
+        await this.processAssetHubBlock(item, apiAt, events);
+      } else {
+        await this.processRelayChainBlock(item, apiAt, events);
+      }
       
     } catch (error) {
       Log.service({
@@ -225,6 +235,201 @@ export class BlockProcessor {
         }
       });
       // Continue processing even if timestamp query fails
+    }
+  }
+
+  /**
+   * Process Asset Hub specific block data
+   */
+  private async processAssetHubBlock(item: QueueItem, apiAt: any, events: Vec<FrameSystemEventRecord>): Promise<void> {
+    Log.service({
+      service: 'Block Processor',
+      action: 'Processing Asset Hub block',
+      details: { 
+        blockNumber: item.blockNumber,
+        eventsCount: events.length
+      }
+    });
+
+    try {
+      // Process Asset Hub specific events
+      for (const record of events) {
+        const { event } = record;
+        
+        // Handle ahMigrator.BatchProcessed events
+        if (event.section === 'ahMigrator' && event.method === 'BatchProcessed') {
+          await this.handleAssetHubBatchProcessed(event, item);
+        }
+        
+        // Handle messageQueue.Processed events (DMP latency)
+        if (event.section === 'messageQueue' && event.method === 'Processed') {
+          await this.handleAssetHubMessageQueueProcessed(event, item);
+        }
+        
+        // Handle parachainSystem.UpwardMessageSent events (UMP)
+        if (event.section === 'parachainSystem' && event.method === 'UpwardMessageSent') {
+          await this.handleAssetHubUpwardMessageSent(event, item);
+        }
+      }
+
+      // Query Asset Hub specific storage
+      await this.processAssetHubStorage(apiAt, item);
+
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error processing Asset Hub block',
+        error: error as Error,
+        details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  /**
+   * Process Relay Chain specific block data
+   */
+  private async processRelayChainBlock(item: QueueItem, apiAt: any, events: Vec<FrameSystemEventRecord>): Promise<void> {
+    Log.service({
+      service: 'Block Processor',
+      action: 'Processing Relay Chain block',
+      details: { 
+        blockNumber: item.blockNumber,
+        eventsCount: events.length
+      }
+    });
+
+    try {
+      // Process Relay Chain specific events
+      for (const record of events) {
+        const { event } = record;
+        
+        // Handle messageQueue.Processed events (UMP latency)
+        if (event.section === 'messageQueue' && event.method === 'Processed') {
+          await this.handleRelayChainMessageQueueProcessed(event, item);
+        }
+      }
+
+      // Query Relay Chain specific storage
+      await this.processRelayChainStorage(apiAt, item);
+
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error processing Relay Chain block',
+        error: error as Error,
+        details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  /**
+   * Asset Hub event handlers
+   */
+  private async handleAssetHubBatchProcessed(event: any, item: QueueItem): Promise<void> {
+    Log.chainEvent({
+      chain: 'asset-hub',
+      eventType: 'BatchProcessed',
+      blockNumber: item.blockNumber,
+      details: { eventData: event.toJSON() }
+    });
+    // TODO: Implement batch processing logic from ahService
+  }
+
+  private async handleAssetHubMessageQueueProcessed(event: any, item: QueueItem): Promise<void> {
+    Log.chainEvent({
+      chain: 'asset-hub',
+      eventType: 'MessageQueue.Processed',
+      blockNumber: item.blockNumber,
+      details: { eventData: event.toJSON() }
+    });
+    // TODO: Implement DMP latency tracking
+  }
+
+  private async handleAssetHubUpwardMessageSent(event: any, item: QueueItem): Promise<void> {
+    Log.chainEvent({
+      chain: 'asset-hub',
+      eventType: 'UpwardMessageSent',
+      blockNumber: item.blockNumber,
+      details: { eventData: event.toJSON() }
+    });
+    // TODO: Implement UMP tracking
+  }
+
+  /**
+   * Relay Chain event handlers
+   */
+  private async handleRelayChainMessageQueueProcessed(event: Event, item: QueueItem): Promise<void> {
+    try {
+      const umpLatencyProcessor = UmpLatencyProcessor.getInstance();
+
+      await db.insert(messageProcessingEventsRC).values({
+        timestamp: new Date(item.timestamp!),
+      });
+
+      umpLatencyProcessor.addMessageQueueProcessed(new Date(item.timestamp!));
+
+      Log.chainEvent({
+        chain: 'relay-chain',
+        eventType: 'MessageQueue.Processed',
+        blockNumber: item.blockNumber,
+        details: { eventData: event.toJSON() }
+      });
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'relay-chain',
+        eventType: 'MessageQueue.Processed database error',
+        error: error as Error,
+      });
+    }
+  }
+
+  /**
+   * Asset Hub storage queries
+   */
+  private async processAssetHubStorage(apiAt: any, item: QueueItem): Promise<void> {
+    try {
+      // TODO: Query Asset Hub specific storage:
+      // - ahMigrator.ahMigrationStage
+      // - ahMigrator.dmpDataMessageCounts
+      // - parachainSystem.pendingUpwardMessages
+      
+      Log.service({
+        service: 'Block Processor',
+        action: 'Asset Hub storage queries completed',
+        details: { blockNumber: item.blockNumber }
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error querying Asset Hub storage',
+        error: error as Error,
+        details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  /**
+   * Relay Chain storage queries
+   */
+  private async processRelayChainStorage(apiAt: any, item: QueueItem): Promise<void> {
+    try {
+      // TODO: Query Relay Chain specific storage:
+      // - rcMigrator.rcMigrationStage
+      // - rcMigrator.dmpDataMessageCounts
+      // - dmp.downwardMessageQueues
+      
+      Log.service({
+        service: 'Block Processor',
+        action: 'Relay Chain storage queries completed',
+        details: { blockNumber: item.blockNumber }
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error querying Relay Chain storage',
+        error: error as Error,
+        details: { blockNumber: item.blockNumber }
+      });
     }
   }
 
