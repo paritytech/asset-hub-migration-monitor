@@ -1,6 +1,7 @@
-import { eventService } from "../eventService";
-import { DmpMetricsCache } from "./DmpMetricsCache";
-import { Log } from "../../logging/Log";
+import { Log } from '../../logging/Log';
+import { eventService } from '../eventService';
+
+import { DmpMetricsCache } from './DmpMetricsCache';
 
 interface DmpEvent {
   timestamp: Date;
@@ -24,7 +25,7 @@ export class DmpLatencyProcessor {
 
   // Add fill message sent event
   public addFillMessageSent(timestamp: Date): void {
-    this.fillMessageStack.push({ timestamp });    
+    this.fillMessageStack.push({ timestamp });
     // Keep only the last maxStackSize events
     if (this.fillMessageStack.length > this.maxStackSize) {
       this.fillMessageStack.shift();
@@ -40,7 +41,7 @@ export class DmpLatencyProcessor {
   // Add message queue processed event
   public addMessageQueueProcessed(timestamp: Date): void {
     this.messageQueueStack.push({ timestamp });
-    
+
     // Keep only the last maxStackSize events
     if (this.messageQueueStack.length > this.maxStackSize) {
       this.messageQueueStack.shift();
@@ -58,10 +59,10 @@ export class DmpLatencyProcessor {
 
     const firstFillEvent = this.fillMessageStack[0];
     const firstQueueEvent = this.messageQueueStack[0];
-    
+
     // Calculate latency
     const latencyMs = firstQueueEvent.timestamp.getTime() - firstFillEvent.timestamp.getTime();
-    
+
     // Handle negative latency (queue event happened before fill event)
     if (latencyMs < 0) {
       Log.service({
@@ -79,7 +80,7 @@ export class DmpLatencyProcessor {
     } else {
       this.emitLatency(latencyMs, firstQueueEvent.timestamp);
     }
-    
+
     // Remove the matched events
     this.fillMessageStack.shift();
     this.messageQueueStack.shift();
@@ -94,7 +95,7 @@ export class DmpLatencyProcessor {
       const oldCount = this.fillMessageStack.length - 1;
       const latestFillEvent = this.fillMessageStack[this.fillMessageStack.length - 1];
       this.fillMessageStack = [latestFillEvent];
-      
+
       Log.service({
         service: 'DMP Latency Processor',
         action: 'Cleaned up old fill events',
@@ -130,4 +131,4 @@ export class DmpLatencyProcessor {
     this.fillMessageStack = [];
     this.messageQueueStack = [];
   }
-} 
+}

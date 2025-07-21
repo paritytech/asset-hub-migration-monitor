@@ -1,4 +1,5 @@
 import type { VoidFn } from '@polkadot/api/types';
+
 import { ApiPromise } from '@polkadot/api';
 
 import { Log } from '../logging/Log';
@@ -33,10 +34,10 @@ export class RuntimeManager {
 
   private async performInitialization(): Promise<void> {
     const api = await AbstractApi.getInstance().getRelayChainApi();
-    
+
     Log.service({
       service: 'Runtime Manager',
-      action: 'Starting runtime detection initialization'
+      action: 'Starting runtime detection initialization',
     });
 
     // Initial check
@@ -49,19 +50,19 @@ export class RuntimeManager {
 
     Log.service({
       service: 'Runtime Manager',
-      action: 'rcMigrator pallet not available yet, setting up detection'
+      action: 'rcMigrator pallet not available yet, setting up detection',
     });
 
     // Subscribe to runtime upgrades
     try {
       this.runtimeVersionUnsubscribe = await api.rpc.state.subscribeRuntimeVersion(
-        async (version) => {
+        async version => {
           Log.service({
             service: 'Runtime Manager',
             action: 'Runtime version updated',
-            details: { specVersion: version.specVersion.toNumber() }
+            details: { specVersion: version.specVersion.toNumber() },
           });
-          
+
           if (!this.rcMigratorAvailable && this.checkPalletAvailability(api)) {
             this.rcMigratorAvailable = true;
             this.notifyPalletAvailable();
@@ -72,15 +73,15 @@ export class RuntimeManager {
 
       Log.service({
         service: 'Runtime Manager',
-        action: 'Successfully subscribed to runtime version updates'
+        action: 'Successfully subscribed to runtime version updates',
       });
     } catch (error) {
       Log.service({
         service: 'Runtime Manager',
         action: 'Failed to subscribe to runtime version, falling back to polling',
-        error: error as Error
+        error: error as Error,
       });
-      
+
       // Fallback to polling
       this.startPolling();
     }
@@ -98,18 +99,18 @@ export class RuntimeManager {
   private notifyPalletAvailable(): void {
     Log.service({
       service: 'Runtime Manager',
-      action: 'rcMigrator pallet is now available, notifying subscribers'
+      action: 'rcMigrator pallet is now available, notifying subscribers',
     });
 
     eventService.emit('rcMigratorAvailable', {
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
   private async startPolling(): Promise<void> {
     let attempt = 0;
     const maxInitialAttempts = 50;
-    
+
     const poll = async () => {
       if (this.rcMigratorAvailable) {
         return;
@@ -120,9 +121,9 @@ export class RuntimeManager {
         Log.service({
           service: 'Runtime Manager',
           action: 'Maximum initial polling attempts reached, switching to slow polling',
-          details: { nextCheckIn: '1 minute' }
+          details: { nextCheckIn: '1 minute' },
         });
-        
+
         // Poll every minute indefinitely
         this.pollInterval = setTimeout(poll, 60 * 1000);
         return;
@@ -130,7 +131,7 @@ export class RuntimeManager {
 
       try {
         const api = await AbstractApi.getInstance().getRelayChainApi();
-        
+
         if (this.checkPalletAvailability(api)) {
           this.rcMigratorAvailable = true;
           this.notifyPalletAvailable();
@@ -140,22 +141,21 @@ export class RuntimeManager {
 
         attempt++;
         const delay = Math.min(5000 * Math.pow(1.5, attempt), 60000); // Max 1 minute
-        
+
         Log.service({
           service: 'Runtime Manager',
           action: 'Polling for rcMigrator pallet',
-          details: { attempt, nextCheckIn: `${delay}ms` }
+          details: { attempt, nextCheckIn: `${delay}ms` },
         });
 
         this.pollInterval = setTimeout(poll, delay);
-        
       } catch (error) {
         Log.service({
           service: 'Runtime Manager',
           action: 'Error during polling',
-          error: error as Error
+          error: error as Error,
         });
-        
+
         attempt++;
         this.pollInterval = setTimeout(poll, 10000); // Retry in 10s on error
       }
@@ -163,7 +163,7 @@ export class RuntimeManager {
 
     Log.service({
       service: 'Runtime Manager',
-      action: 'Starting polling for rcMigrator pallet'
+      action: 'Starting polling for rcMigrator pallet',
     });
 
     poll();
@@ -172,14 +172,14 @@ export class RuntimeManager {
   private cleanup(): void {
     Log.service({
       service: 'Runtime Manager',
-      action: 'Cleaning up runtime detection resources'
+      action: 'Cleaning up runtime detection resources',
     });
 
     if (this.runtimeVersionUnsubscribe) {
       this.runtimeVersionUnsubscribe();
       this.runtimeVersionUnsubscribe = undefined;
     }
-    
+
     if (this.pollInterval) {
       clearTimeout(this.pollInterval);
       this.pollInterval = undefined;

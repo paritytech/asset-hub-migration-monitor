@@ -1,118 +1,147 @@
 // Mapping from migration stages to pallet names
 export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   // Account-related stages
-  'AccountsMigrationInit': 'Accounts',
-  'AccountsMigrationOngoing': 'Accounts',
-  'AccountsMigrationDone': 'Accounts',
-  
+  AccountsMigrationInit: 'Accounts',
+  AccountsMigrationOngoing: 'Accounts',
+  AccountsMigrationDone: 'Accounts',
+
   // Multisig stages
-  'MultisigMigrationInit': 'Multisig',
-  'MultisigMigrationOngoing': 'Multisig',
-  'MultisigMigrationDone': 'Multisig',
-  
+  MultisigMigrationInit: 'Multisig',
+  MultisigMigrationOngoing: 'Multisig',
+  MultisigMigrationDone: 'Multisig',
+
   // Claims stages
-  'ClaimsMigrationDone': 'Claims',
-  
+  ClaimsMigrationDone: 'Claims',
+
   // Proxy stages
-  'ProxyMigrationInit': 'Proxy',
-  'ProxyMigrationOngoing': 'Proxy',
-  'ProxyMigrationProxies': 'Proxy',
-  'ProxyMigrationAnnouncements': 'Proxy',
-  'ProxyMigrationDone': 'Proxy',
-  
+  ProxyMigrationInit: 'Proxy',
+  ProxyMigrationOngoing: 'Proxy',
+  ProxyMigrationProxies: 'Proxy',
+  ProxyMigrationAnnouncements: 'Proxy',
+  ProxyMigrationDone: 'Proxy',
+
   // Preimage stages
-  'PreimageMigrationInit': 'Preimage',
-  'PreimageMigrationChunksOngoing': 'Preimage',
-  'PreimageMigrationChunksDone': 'Preimage',
-  'PreimageMigrationRequestStatusOngoing': 'Preimage',
-  'PreimageMigrationRequestStatusDone': 'Preimage',
-  'PreimageMigrationLegacyRequestStatusInit': 'Preimage',
-  'PreimageMigrationLegacyRequestStatusOngoing': 'Preimage',
-  'PreimageMigrationLegacyRequestStatusDone': 'Preimage',
-  'PreimageMigrationDone': 'Preimage',
-  
+  PreimageMigrationInit: 'Preimage',
+  PreimageMigrationChunksOngoing: 'Preimage',
+  PreimageMigrationChunksDone: 'Preimage',
+  PreimageMigrationRequestStatusOngoing: 'Preimage',
+  PreimageMigrationRequestStatusDone: 'Preimage',
+  PreimageMigrationLegacyRequestStatusInit: 'Preimage',
+  PreimageMigrationLegacyRequestStatusOngoing: 'Preimage',
+  PreimageMigrationLegacyRequestStatusDone: 'Preimage',
+  PreimageMigrationDone: 'Preimage',
+
   // Nomination Pools stages
-  'NomPoolsMigrationInit': 'NomPools',
-  'NomPoolsMigrationOngoing': 'NomPools',
-  'NomPoolsMigrationDone': 'NomPools',
-  
+  NomPoolsMigrationInit: 'NomPools',
+  NomPoolsMigrationOngoing: 'NomPools',
+  NomPoolsMigrationDone: 'NomPools',
+
   // Vesting stages
-  'VestingMigrationInit': 'Vesting',
-  'VestingMigrationOngoing': 'Vesting',
-  'VestingMigrationDone': 'Vesting',
-  
+  VestingMigrationInit: 'Vesting',
+  VestingMigrationOngoing: 'Vesting',
+  VestingMigrationDone: 'Vesting',
+
   // Fast Unstake stages
-  'FastUnstakeMigrationInit': 'FastUnstake',
-  'FastUnstakeMigrationOngoing': 'FastUnstake',
-  'FastUnstakeMigrationDone': 'FastUnstake',
-  
+  FastUnstakeMigrationInit: 'FastUnstake',
+  FastUnstakeMigrationOngoing: 'FastUnstake',
+  FastUnstakeMigrationDone: 'FastUnstake',
+
   // Indices stages
-  'IndicesMigrationInit': 'Indices',
-  'IndicesMigrationOngoing': 'Indices',
-  'IndicesMigrationDone': 'Indices',
-  
+  IndicesMigrationInit: 'Indices',
+  IndicesMigrationOngoing: 'Indices',
+  IndicesMigrationDone: 'Indices',
+
   // Referenda stages
-  'ReferendaMigrationInit': 'Referenda',
-  'ReferendaMigrationOngoing': 'Referenda',
-  'ReferendaMigrationDone': 'Referenda',
-  
+  ReferendaMigrationInit: 'Referenda',
+  ReferendaMigrationOngoing: 'Referenda',
+  ReferendaMigrationDone: 'Referenda',
+
   // Bags List stages
-  'BagsListMigrationInit': 'BagsList',
-  'BagsListMigrationOngoing': 'BagsList',
-  'BagsListMigrationDone': 'BagsList',
-  
+  BagsListMigrationInit: 'BagsList',
+  BagsListMigrationOngoing: 'BagsList',
+  BagsListMigrationDone: 'BagsList',
+
   // Scheduler stages
-  'SchedulerMigrationInit': 'Scheduler',
-  'SchedulerMigrationOngoing': 'Scheduler',
-  'SchedulerAgendaMigrationOngoing': 'Scheduler',
-  'SchedulerMigrationDone': 'Scheduler',
-  
+  SchedulerMigrationInit: 'Scheduler',
+  SchedulerMigrationOngoing: 'Scheduler',
+  SchedulerAgendaMigrationOngoing: 'Scheduler',
+  SchedulerMigrationDone: 'Scheduler',
+
   // Conviction Voting stages
-  'ConvictionVotingMigrationInit': 'ConvictionVoting',
-  'ConvictionVotingMigrationOngoing': 'ConvictionVoting',
-  'ConvictionVotingMigrationDone': 'ConvictionVoting',
-  
+  ConvictionVotingMigrationInit: 'ConvictionVoting',
+  ConvictionVotingMigrationOngoing: 'ConvictionVoting',
+  ConvictionVotingMigrationDone: 'ConvictionVoting',
+
   // Bounties stages
-  'BountiesMigrationDone': 'Bounties',
-  
+  BountiesMigrationDone: 'Bounties',
+
   // Asset Rate stages
-  'AssetRateMigrationInit': 'AssetRate',
-  'AssetRateMigrationOngoing': 'AssetRate',
-  'AssetRateMigrationDone': 'AssetRate',
-  
+  AssetRateMigrationInit: 'AssetRate',
+  AssetRateMigrationOngoing: 'AssetRate',
+  AssetRateMigrationDone: 'AssetRate',
+
   // Crowdloan stages
-  'CrowdloanMigrationDone': 'Crowdloan',
-  
+  CrowdloanMigrationDone: 'Crowdloan',
+
   // Treasury stages
-  'TreasuryMigrationDone': 'Treasury',
-  
+  TreasuryMigrationDone: 'Treasury',
+
   // Staking stages
-  'StakingMigrationInit': 'Staking',
-  'StakingMigrationOngoing': 'Staking',
-  'StakingMigrationDone': 'Staking',
+  StakingMigrationInit: 'Staking',
+  StakingMigrationOngoing: 'Staking',
+  StakingMigrationDone: 'Staking',
 };
 
 // Reverse mapping from pallet names to stage names
 export const PALLET_TO_STAGE_MAP: Record<string, string[]> = {
-  'Balances': ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
-  'Accounts': ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
-  'Multisig': ['MultisigMigrationInit', 'MultisigMigrationOngoing', 'MultisigMigrationDone'],
-  'Claims': ['ClaimsMigrationDone'],
-  'Proxy': ['ProxyMigrationInit', 'ProxyMigrationOngoing', 'ProxyMigrationProxies', 'ProxyMigrationAnnouncements', 'ProxyMigrationDone'],
-  'Preimage': ['PreimageMigrationInit', 'PreimageMigrationChunksOngoing', 'PreimageMigrationChunksDone', 'PreimageMigrationRequestStatusOngoing', 'PreimageMigrationRequestStatusDone', 'PreimageMigrationLegacyRequestStatusInit', 'PreimageMigrationLegacyRequestStatusOngoing', 'PreimageMigrationLegacyRequestStatusDone', 'PreimageMigrationDone'],
-  'NomPools': ['NomPoolsMigrationInit', 'NomPoolsMigrationOngoing', 'NomPoolsMigrationDone'],
-  'Vesting': ['VestingMigrationInit', 'VestingMigrationOngoing', 'VestingMigrationDone'],
-  'FastUnstake': ['FastUnstakeMigrationInit', 'FastUnstakeMigrationOngoing', 'FastUnstakeMigrationDone'],
-  'Indices': ['IndicesMigrationInit', 'IndicesMigrationOngoing', 'IndicesMigrationDone'],
-  'Referenda': ['ReferendaMigrationInit', 'ReferendaMigrationOngoing', 'ReferendaMigrationDone'],
-  'BagsList': ['BagsListMigrationInit', 'BagsListMigrationOngoing', 'BagsListMigrationDone'],
-  'Scheduler': ['SchedulerMigrationInit', 'SchedulerMigrationOngoing', 'SchedulerAgendaMigrationOngoing', 'SchedulerMigrationDone'],
-  'ConvictionVoting': ['ConvictionVotingMigrationInit', 'ConvictionVotingMigrationOngoing', 'ConvictionVotingMigrationDone'],
-  'Bounties': ['BountiesMigrationDone'],
-  'AssetRate': ['AssetRateMigrationInit', 'AssetRateMigrationOngoing', 'AssetRateMigrationDone'],
-  'Crowdloan': ['CrowdloanMigrationDone'],
-  'Treasury': ['TreasuryMigrationDone'],
-  'Staking': ['StakingMigrationInit', 'StakingMigrationOngoing', 'StakingMigrationDone'],
+  Balances: ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
+  Accounts: ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
+  Multisig: ['MultisigMigrationInit', 'MultisigMigrationOngoing', 'MultisigMigrationDone'],
+  Claims: ['ClaimsMigrationDone'],
+  Proxy: [
+    'ProxyMigrationInit',
+    'ProxyMigrationOngoing',
+    'ProxyMigrationProxies',
+    'ProxyMigrationAnnouncements',
+    'ProxyMigrationDone',
+  ],
+  Preimage: [
+    'PreimageMigrationInit',
+    'PreimageMigrationChunksOngoing',
+    'PreimageMigrationChunksDone',
+    'PreimageMigrationRequestStatusOngoing',
+    'PreimageMigrationRequestStatusDone',
+    'PreimageMigrationLegacyRequestStatusInit',
+    'PreimageMigrationLegacyRequestStatusOngoing',
+    'PreimageMigrationLegacyRequestStatusDone',
+    'PreimageMigrationDone',
+  ],
+  NomPools: ['NomPoolsMigrationInit', 'NomPoolsMigrationOngoing', 'NomPoolsMigrationDone'],
+  Vesting: ['VestingMigrationInit', 'VestingMigrationOngoing', 'VestingMigrationDone'],
+  FastUnstake: [
+    'FastUnstakeMigrationInit',
+    'FastUnstakeMigrationOngoing',
+    'FastUnstakeMigrationDone',
+  ],
+  Indices: ['IndicesMigrationInit', 'IndicesMigrationOngoing', 'IndicesMigrationDone'],
+  Referenda: ['ReferendaMigrationInit', 'ReferendaMigrationOngoing', 'ReferendaMigrationDone'],
+  BagsList: ['BagsListMigrationInit', 'BagsListMigrationOngoing', 'BagsListMigrationDone'],
+  Scheduler: [
+    'SchedulerMigrationInit',
+    'SchedulerMigrationOngoing',
+    'SchedulerAgendaMigrationOngoing',
+    'SchedulerMigrationDone',
+  ],
+  ConvictionVoting: [
+    'ConvictionVotingMigrationInit',
+    'ConvictionVotingMigrationOngoing',
+    'ConvictionVotingMigrationDone',
+  ],
+  Bounties: ['BountiesMigrationDone'],
+  AssetRate: ['AssetRateMigrationInit', 'AssetRateMigrationOngoing', 'AssetRateMigrationDone'],
+  Crowdloan: ['CrowdloanMigrationDone'],
+  Treasury: ['TreasuryMigrationDone'],
+  Staking: ['StakingMigrationInit', 'StakingMigrationOngoing', 'StakingMigrationDone'],
 };
 
 // Helper function to get pallet name from stage
@@ -129,11 +158,11 @@ export function getStagesFromPallet(pallet: string): string[] {
 export function getCurrentStageForPallet(pallet: string): string | null {
   const stages = getStagesFromPallet(pallet);
   if (stages.length === 0) return null;
-  
+
   // Return the first ongoing stage, or the last stage if no ongoing stages
   const ongoingStage = stages.find(stage => stage.includes('Ongoing'));
   if (ongoingStage) return ongoingStage;
-  
+
   return stages[stages.length - 1];
 }
 
@@ -170,4 +199,4 @@ export function getInitStageForPallet(pallet: string): string {
 // Helper function to get the Done stage name for a pallet
 export function getDoneStageForPallet(pallet: string): string {
   return `${pallet}MigrationDone`;
-} 
+}

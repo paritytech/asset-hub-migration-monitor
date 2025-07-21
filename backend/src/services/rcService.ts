@@ -19,14 +19,14 @@ import {
   messageProcessingEventsRC,
 } from '../db/schema';
 import { Log } from '../logging/Log';
-
-import { AbstractApi } from './abstractApi';
-import { eventService } from './eventService';
-import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
-import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
-import { TimeInStageCache } from './cache/TimeInStageCache';
 import { getPalletFromStage } from '../util/stageToPalletMapping';
 import { SubscriptionManager } from '../util/SubscriptionManager';
+
+import { AbstractApi } from './abstractApi';
+import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
+import { TimeInStageCache } from './cache/TimeInStageCache';
+import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
+import { eventService } from './eventService';
 
 export async function runRcNewHeadsService() {
   const provider = new WsProvider(getConfig().relayChainUrl);
@@ -44,8 +44,8 @@ export async function runRcNewHeadsService() {
 
     if (
       !subManager.allSubsInitialized &&
-      subManager.migrationStartBlockNumber && 
-      subManager.migrationStartBlockNumber - blockNumber === 3// Start 3 blocks early to ensure we don't miss any events.
+      subManager.migrationStartBlockNumber &&
+      subManager.migrationStartBlockNumber - blockNumber === 3 // Start 3 blocks early to ensure we don't miss any events.
     ) {
       subManager.initAllMigrationSubs();
     } else if (subManager.migrationStarted && !subManager.allSubsInitialized) {
@@ -84,7 +84,9 @@ export async function runRcMigrationStageService(): Promise<VoidFn> {
           stage: currentStage,
           chain: 'relay-chain',
           details: JSON.stringify(migrationStage.toJSON()),
-          scheduledBlockNumber: migrationStage.isScheduled ? migrationStage.asScheduled.blockNumber.toNumber() : undefined,
+          scheduledBlockNumber: migrationStage.isScheduled
+            ? migrationStage.asScheduled.blockNumber.toNumber()
+            : undefined,
         });
 
         if (migrationStage.isScheduled) {
@@ -94,10 +96,10 @@ export async function runRcMigrationStageService(): Promise<VoidFn> {
 
         // Record stage start time if it's a new stage
         const isNewStage = await timeInStageCache.recordStageStart(currentStage);
-        
+
         // Get pallet name for this stage
         const palletName = getPalletFromStage(currentStage);
-        
+
         // Get current pallet info for the event
         const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
@@ -107,7 +109,9 @@ export async function runRcMigrationStageService(): Promise<VoidFn> {
           details: migrationStage.toJSON(),
           timestamp: new Date().toISOString(),
           palletName: palletName || null,
-          scheduledBlockNumber: migrationStage.isScheduled ? migrationStage.asScheduled.blockNumber.toNumber() : null,
+          scheduledBlockNumber: migrationStage.isScheduled
+            ? migrationStage.asScheduled.blockNumber.toNumber()
+            : null,
           palletInitStartedAt: palletInfo?.initStartedAt || null,
           timeInPallet: palletInfo?.timeInPallet || null,
           isNewStage,
@@ -119,13 +123,15 @@ export async function runRcMigrationStageService(): Promise<VoidFn> {
         Log.chainEvent({
           chain: 'relay-chain',
           eventType: 'migration stage update',
-          details: { 
+          details: {
             stage: currentStage,
             palletName,
             isNewStage,
             timeInPallet: palletInfo?.timeInPallet || null,
             isPalletCompleted: palletInfo?.isCompleted || false,
-            scheduledBlockNumber: migrationStage.isScheduled ? migrationStage.asScheduled.blockNumber.toNumber() : null,
+            scheduledBlockNumber: migrationStage.isScheduled
+              ? migrationStage.asScheduled.blockNumber.toNumber()
+              : null,
           },
         });
       } catch (error) {

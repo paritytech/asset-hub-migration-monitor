@@ -1,9 +1,9 @@
 import { Log } from '../logging/Log';
+import { TimeInStageCache } from '../services/cache/TimeInStageCache';
 
 import { xcmMessageCounters, dmpMetricsCache } from './schema';
 
 import { db } from './index';
-import { TimeInStageCache } from '../services/cache/TimeInStageCache';
 
 export async function initializeDb() {
   try {

@@ -1,7 +1,9 @@
 import type { Header } from '@polkadot/types/interfaces';
+
 import { VoidFn } from '@polkadot/api/types';
 
 import { Log } from '../logging/Log';
+
 import { AbstractApi } from './abstractApi';
 import { BlockProcessor } from './BlockProcessor';
 
@@ -32,10 +34,7 @@ export class FinalizedService {
     });
 
     try {
-      await Promise.all([
-        this.startRelayChainSubscription(),
-        this.startAssetHubSubscription(),
-      ]);
+      await Promise.all([this.startRelayChainSubscription(), this.startAssetHubSubscription()]);
 
       Log.service({
         service: 'Finalized Service',
@@ -57,7 +56,7 @@ export class FinalizedService {
   private async startRelayChainSubscription(): Promise<void> {
     try {
       const api = await AbstractApi.getInstance().getRelayChainApi();
-      
+
       this.rcUnsubscribe = await api.rpc.chain.subscribeFinalizedHeads((header: Header) => {
         const blockNumber = header.number.toNumber();
         const blockHash = header.hash.toHex();
@@ -93,14 +92,14 @@ export class FinalizedService {
   private async startAssetHubSubscription(): Promise<void> {
     try {
       const api = await AbstractApi.getInstance().getAssetHubApi();
-      
+
       this.ahUnsubscribe = await api.rpc.chain.subscribeFinalizedHeads((header: Header) => {
         const blockNumber = header.number.toNumber();
         const blockHash = header.hash.toHex();
 
         Log.chainEvent({
           chain: 'asset-hub',
-          eventType: 'finalized_head', 
+          eventType: 'finalized_head',
           blockNumber,
           details: { blockHash },
         });

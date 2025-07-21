@@ -7,10 +7,10 @@ import { getConfig } from './config';
 import { initializeDb } from './db/initializeDb';
 import { Log } from './logging/Log';
 import { updatesHandler } from './routes/updates';
-import { SubscriptionManager } from './util/SubscriptionManager';
-import { RuntimeManager } from './util/RuntimeManager';
-import { FinalizedService } from './services/finalizedService';
 import { BlockProcessor } from './services/BlockProcessor';
+import { FinalizedService } from './services/finalizedService';
+import { RuntimeManager } from './util/RuntimeManager';
+import { SubscriptionManager } from './util/SubscriptionManager';
 
 const app = express();
 const port = getConfig().port;
@@ -38,11 +38,11 @@ app.use(cors());
 app.get('/health', (_req: Request, res: Response) => {
   const runtimeManager = RuntimeManager.getInstance();
   const subManager = SubscriptionManager.getInstance();
-  
-  res.json({ 
+
+  res.json({
     status: 'ok',
     rcMigratorAvailable: runtimeManager.isRcMigratorAvailable(),
-    allSubsInitialized: subManager.allSubsInitialized
+    allSubsInitialized: subManager.allSubsInitialized,
   });
 });
 
@@ -50,17 +50,16 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/api/queue-status', (_req: Request, res: Response) => {
   const blockProcessor = BlockProcessor.getInstance();
   const finalizedService = FinalizedService.getInstance();
-  
+
   res.json({
     queues: blockProcessor.getQueueStatus(),
     subscriptions: finalizedService.getStatus(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Consolidated SSE endpoint
 app.get('/api/updates', updatesHandler);
-
 
 const main = async () => {
   const subManager = SubscriptionManager.getInstance();
@@ -84,7 +83,6 @@ const main = async () => {
 
       await finalizedService.stop();
       await subManager.cleanupAllSubs();
-
 
       server.close(() => {
         Log.service({
@@ -116,10 +114,10 @@ const main = async () => {
       },
     });
   });
-}
+};
 
 try {
-  main()
-} catch(err) {
+  main();
+} catch (err) {
   console.error(err);
 }

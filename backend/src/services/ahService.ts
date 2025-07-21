@@ -17,13 +17,13 @@ import {
   palletMigrationCounters,
 } from '../db/schema';
 import { Log } from '../logging/Log';
+import { getCurrentStageForPallet } from '../util/stageToPalletMapping';
 
 import { AbstractApi } from './abstractApi';
-import { eventService } from './eventService';
-import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
 import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
-import { getCurrentStageForPallet } from '../util/stageToPalletMapping';
+import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
+import { eventService } from './eventService';
 
 const dmpLatencyProcessor = DmpLatencyProcessor.getInstance();
 
@@ -33,7 +33,6 @@ export async function runAhMigrationStageService() {
   const unsubscribeMigrationStage = (await api.query.ahMigrator.ahMigrationStage(
     async (migrationStage: any) => {
       try {
-
         await db.insert(migrationStages).values({
           chain: 'asset-hub',
           stage: migrationStage.type,
@@ -166,7 +165,7 @@ export async function runAhNewHeadsService() {
 
 export async function runAhEventsService() {
   const api = await AbstractApi.getInstance().getAssetHubApi();
-  let lastProcessedBlock = 0; // Track the last block we processed
+  const lastProcessedBlock = 0; // Track the last block we processed
 
   const unsubscribe = await api.query.system.events(async events => {
     let foundMessageQueueProcessed = false;
@@ -176,7 +175,7 @@ export async function runAhEventsService() {
         try {
           if (foundMessageQueueProcessed) {
             continue;
-          } else  {
+          } else {
             foundMessageQueueProcessed = true;
           }
 
@@ -228,7 +227,7 @@ export async function runAhEventsService() {
             },
           });
         } catch (error) {
-          Log.chainEvent({  
+          Log.chainEvent({
             chain: 'asset-hub',
             eventType: 'UpwardMessageSent database error',
             error: error as Error,
@@ -244,14 +243,13 @@ export async function runAhEventsService() {
           const itemsProcessed = parseInt(event.data[1].toString()); // This is the items processed.
           const itemsFailed = parseInt(event.data[2].toString()); // This is the items failed.
 
-
           // Handle the special case where "Balances" pallet refers to "Accounts" stage
           const targetPallet = palletName === 'Balances' ? 'Accounts' : palletName;
-          
+
           // Get the current stage for this pallet
-          
+
           const currentStageName = getCurrentStageForPallet(targetPallet);
-          
+
           if (!currentStageName) {
             Log.chainEvent({
               chain: 'asset-hub',
