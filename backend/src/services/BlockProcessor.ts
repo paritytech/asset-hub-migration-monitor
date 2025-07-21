@@ -1,4 +1,4 @@
-import type { u32, Vec } from '@polkadot/types';
+import type { u32, Vec, Bytes } from '@polkadot/types';
 import type { FrameSystemEventRecord } from '@polkadot/types/lookup';
 import type { Event } from '@polkadot/types/interfaces';
 import type { ApiDecoration } from '@polkadot/api/types';
@@ -16,7 +16,7 @@ import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
 import { TimeInStageCache } from './cache/TimeInStageCache';
 import { SubscriptionManager } from '../util/SubscriptionManager';
-import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents, xcmMessageCounters, dmpQueueEvents } from '../db/schema';
+import { messageProcessingEventsRC, migrationStages, palletMigrationCounters, messageProcessingEventsAH, upwardMessageSentEvents, xcmMessageCounters, dmpQueueEvents, umpQueueEvents } from '../db/schema';
 import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
 
 // TODO: Ensure we handle migration stages correctly.
@@ -524,12 +524,17 @@ export class BlockProcessor {
   /**
    * Asset Hub storage queries
    */
-  private async processAssetHubStorage(apiAt: any, item: QueueItem): Promise<void> {
+  private async processAssetHubStorage(apiAt: ApiDecoration<'promise'>, item: QueueItem): Promise<void> {
     try {
+      const [dmpDataMessageCounts, pendingUpwardMessages] = await Promise.all([
+        apiAt.query.ahMigrator.dmpDataMessageCounts<ITuple<[u32, u32]>>(),
+        apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>()
+      ]);
+
+      await this.handleAhDmpDataMessageCounts(dmpDataMessageCounts, item);
+      await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
       // TODO: Query Asset Hub specific storage:
-      // - ahMigrator.ahMigrationStage
-      // - ahMigrator.dmpDataMessageCounts
-      // - parachainSystem.pendingUpwardMessages
+      // - ahMigrator.ahMigrationStage (Do we actually need this?)
       
       Log.service({
         service: 'Block Processor',
@@ -573,6 +578,87 @@ export class BlockProcessor {
         action: 'Error querying Relay Chain storage',
         error: error as Error,
         details: { blockNumber: item.blockNumber }
+      });
+    }
+  }
+
+  private async handleAhDmpDataMessageCounts(dmpDataMessageCounts: ITuple<[u32, u32]>, item: QueueItem) {
+    try {
+      const [_, erroredOnAh] = dmpDataMessageCounts;
+      await db
+        .update(xcmMessageCounters)
+        .set({
+          messagesFailed: erroredOnAh.toNumber(),
+          lastUpdated: new Date(item.timestamp!),
+        })
+        .where(eq(xcmMessageCounters.sourceChain, 'asset-hub'));
+      
+      const counterAh = await db.query.xcmMessageCounters.findFirst({
+        where: (counters, { eq }) => eq(counters.sourceChain, 'asset-hub'),
+      });
+
+      if (counterAh) {
+        const eventData = {
+          sourceChain: counterAh.sourceChain,
+          destinationChain: counterAh.destinationChain,
+          messagesSent: counterAh.messagesSent,
+          messagesProcessed: counterAh.messagesProcessed,
+          messagesFailed: counterAh.messagesFailed,
+          lastUpdated: counterAh.lastUpdated,
+        };
+
+        Log.service({
+          service: 'XCM Message Counter',
+          action: 'Emitting ahXcmMessageCounter event via storage',
+          details: eventData,
+        });
+        eventService.emit('ahXcmMessageCounter', eventData);
+      } else {
+        Log.service({
+          service: 'XCM Message Counter',
+          action: 'No counter found after storage update',
+          details: { sourceChain: 'asset-hub' },
+        });
+      }
+    } catch (error) {
+      Log.chainEvent({
+        chain: 'asset-hub',
+        eventType: 'XCM message processing error',
+        error: error as Error,
+      });
+    } 
+  }
+
+  private async handleAhPendingUpwardMessages(pendingUpwardMessages: Vec<Bytes>, item: QueueItem) {
+    try {
+      let totalSizeBytes = 0;
+      for (const message of pendingUpwardMessages) {
+        const messageSize = message.length;
+        totalSizeBytes += messageSize;
+      }
+
+      await db.insert(umpQueueEvents).values({
+        queueSize: pendingUpwardMessages.length,
+        totalSizeBytes,
+        timestamp: new Date(item.timestamp!),
+      });
+
+      eventService.emit('umpQueueEvent', {
+        queueSize: pendingUpwardMessages.length,
+        totalSizeBytes,
+        timestamp: new Date(item.timestamp!).toISOString(),
+      });
+
+      Log.service({
+        service: 'Asset Hub UMP',
+        action: 'UMP queue event recorded',
+        details: { queueSize: pendingUpwardMessages.length, totalSizeBytes },
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Asset Hub UMP',
+        action: 'Error processing UMP pending messages',
+        error: error as Error,
       });
     }
   }
