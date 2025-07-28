@@ -23,7 +23,6 @@ import {
 } from '../db/schema';
 import { Log } from '../logging/Log';
 import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
-import { SubscriptionManager } from '../util/SubscriptionManager';
 
 import { AbstractApi } from './abstractApi';
 import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
@@ -33,6 +32,11 @@ import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
 import { eventService } from './eventService';
 
 // TODO: Ensure we handle migration stages correctly.
+
+enum ProcessingMode {
+  DETECTION = 'detection',    // Looking for migration events
+  FULL = 'full'              // Full migration monitoring
+}
 
 interface QueueItem {
   blockNumber: number;
@@ -48,6 +52,8 @@ export class BlockProcessor {
   private processing: Map<string, boolean> = new Map();
   private lastBlockNumber: Map<string, number> = new Map();
   private previousDmpQueueSize: number = 0;
+  private currentMode: ProcessingMode = ProcessingMode.DETECTION;
+  private migrationStartBlockNumber?: number;
 
   private constructor() {
     // Initialize queues for both chains
@@ -58,6 +64,67 @@ export class BlockProcessor {
     // Initialize last block numbers to 0
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
+  }
+
+  /**
+   * Initialize BlockProcessor and check current migration state from database
+   */
+  public async initialize(): Promise<void> {
+    try {
+      // Check current migration state from database
+      await this.checkCurrentMigrationStageInDB();
+      
+      Log.service({
+        service: 'Block Processor',
+        action: 'BlockProcessor initialized',
+        details: {
+          migrationStartBlockNumber: this.migrationStartBlockNumber,
+          currentMode: this.currentMode
+        }
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error during initialization',
+        error: error as Error
+      });
+    }
+  }
+
+  /**
+   * Check current migration stage in database and update internal state
+   */
+  private async checkCurrentMigrationStageInDB(): Promise<void> {
+    const migrationStage = await db.query.migrationStages.findFirst({
+      where: and(eq(migrationStages.chain, 'relay-chain'), eq(migrationStages.stage, 'Scheduled')),
+    });
+
+    const latestMigrationStage = await db.query.migrationStages.findFirst({
+      where: eq(migrationStages.chain, 'relay-chain'),
+      orderBy: desc(migrationStages.timestamp),
+    });
+
+    if (latestMigrationStage) {
+      const isActiveStage = this.isMigrationActive(latestMigrationStage.stage);
+      if (isActiveStage) {
+        // Migration is active, switch to full mode
+        this.switchToFullMode();
+        Log.service({
+          service: 'Block Processor',
+          action: 'Active migration detected in database, switching to full mode',
+          details: { stage: latestMigrationStage.stage }
+        });
+      }
+    }
+
+    if (migrationStage) {
+      this.migrationStartBlockNumber = migrationStage.scheduledBlockNumber ?? undefined;
+      Log.service({
+        service: 'Block Processor',
+        action: 'Migration block number loaded from database',
+        details: { blockNumber: this.migrationStartBlockNumber }
+      });
+    }
   }
 
   public static getInstance(): BlockProcessor {
@@ -246,11 +313,45 @@ export class BlockProcessor {
         },
       });
 
-      // Delegate to chain-specific processing
-      if (item.chain === 'asset-hub') {
-        await this.processAssetHubBlock(item, apiAt, events);
-      } else {
-        await this.processRelayChainBlock(item, apiAt, events);
+      // Process based on current mode
+      if (this.currentMode === ProcessingMode.DETECTION) {
+        // Detection mode: only process relay chain for migration events
+        if (item.chain === 'relay-chain') {
+          await this.processRelayChainDetectionOnly(item, events);
+        } else {
+          // Skip Asset Hub processing in detection mode
+          Log.service({
+            service: 'Block Processor',
+            action: 'Skipping Asset Hub block in detection mode',
+            details: { 
+              blockNumber: item.blockNumber,
+              timestamp: new Date(item.timestamp!).toISOString()
+            }
+          });
+        }
+      } else if (this.currentMode === ProcessingMode.FULL) {
+        // Full mode: use existing shouldProcessBlock logic for efficiency
+        const shouldProcess = this.shouldProcessBlock(item.blockNumber, item.chain);
+        
+        if (shouldProcess) {
+          // Full processing: events, storage queries, database writes
+          if (item.chain === 'asset-hub') {
+            await this.processAssetHubBlock(item, apiAt, events);
+          } else {
+            await this.processRelayChainBlock(item, apiAt, events);
+          }
+        } else {
+          // Lightweight processing: just track the block for gap detection
+          Log.service({
+            service: 'Block Processor',
+            action: 'Skipping full processing - not near migration',
+            details: { 
+              blockNumber: item.blockNumber, 
+              chain: item.chain,
+              timestamp: new Date(item.timestamp!).toISOString()
+            }
+          });
+        }
       }
     } catch (error) {
       Log.service({
@@ -879,19 +980,17 @@ export class BlockProcessor {
       });
 
       if (migrationStage.isScheduled) {
-        const subManager = SubscriptionManager.getInstance();
-        subManager.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
+        await this.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
       }
 
-      // Check if we need to initialize migration services based on current stage
-      const subManager = SubscriptionManager.getInstance();
-      if (!subManager.allSubsInitialized && subManager.isMigrationActive(currentStage)) {
+      // Check if we need to switch to full processing based on current stage
+      if (this.isMigrationActive(currentStage)) {
         Log.service({
           service: 'Block Processor', 
-          action: 'Active migration detected in finalized block, initializing services',
+          action: 'Active migration detected in finalized block, switching to full mode',
           details: { stage: currentStage, blockNumber: item.blockNumber }
         });
-        await subManager.initAllMigrationSubs();
+        this.switchToFullMode();
       }
 
       const isNewStage = await timeInStageCache.recordStageStart(currentStage);
@@ -938,13 +1037,278 @@ export class BlockProcessor {
     }
   }
 
+  /**
+   * Lightweight detection mode - only looks for migration scheduling events on Relay Chain
+   */
+  private async processRelayChainDetectionOnly(
+    item: QueueItem,
+    events: Vec<FrameSystemEventRecord>
+  ): Promise<void> {
+    Log.service({
+      service: 'Block Processor',
+      action: 'Processing Relay Chain block in detection mode',
+      details: {
+        blockNumber: item.blockNumber,
+        eventsCount: events.length,
+      },
+    });
+
+    try {
+      // Look for migration scheduling events
+      for (const record of events) {
+        const { event } = record;
+        
+        // Look for rcMigrator.StageTransition events
+			if (event.section === 'rcMigrator' && event.method === 'StageTransition') {
+          
+          const [fromState, toState] = event.data.toJSON() as [unknown, unknown];
+          
+          // Type guard for scheduled state
+          const isScheduledState = (state: unknown): state is { scheduled: { blockNumber: string } } => {
+            return !!state && typeof state === 'object' && !!(state as { scheduled?: { blockNumber?: unknown } }).scheduled?.blockNumber
+          };
+          
+          // Check if transitioning TO scheduled state
+          if (isScheduledState(toState)) {
+            const scheduledBlock = parseInt(toState.scheduled.blockNumber);
+            
+            Log.service({
+              service: 'Block Processor',
+              action: 'Migration scheduled detected! Switching to full processing mode',
+              details: { 
+                scheduledBlock,
+                currentBlock: item.blockNumber,
+                blocksUntilMigration: scheduledBlock - item.blockNumber,
+                fromState,
+                toState
+              }
+            });
+            
+            // Set migration block number internally and persist to DB
+            await this.setMigrationBlockNumber(scheduledBlock);
+            
+            // Switch to full processing mode
+            this.switchToFullMode();
+            
+            return; // Found what we're looking for!
+          }
+
+          // Also check if transitioning from scheduled to an active migration stage
+          if (isScheduledState(fromState) && !isScheduledState(toState)) {
+            Log.service({
+              service: 'Block Processor',
+              action: 'Migration started detected! Ensuring full processing mode',
+              details: { 
+                currentBlock: item.blockNumber,
+                fromState,
+                toState
+              }
+            });
+            
+            // Ensure we're in full processing mode
+            this.switchToFullMode();
+            
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error in detection mode processing',
+        error: error as Error,
+        details: { blockNumber: item.blockNumber },
+      });
+    }
+  }
+
+  /**
+   * Switch to full processing mode
+   */
+  private switchToFullMode(): void {
+    if (this.currentMode === ProcessingMode.FULL) {
+      return; // Already in full mode
+    }
+
+    this.currentMode = ProcessingMode.FULL;
+    
+    Log.service({
+      service: 'Block Processor',
+      action: 'Switched to full processing mode',
+      details: { previousMode: ProcessingMode.DETECTION }
+    });
+  }
+
+  /**
+   * Switch to detection mode (used after migration completes)
+   * TODO: Implement migration completion detection to call this method
+   * Look for rcMigrator.StageTransition events indicating migration is complete
+   */
+  private switchToDetectionMode(): void {
+    if (this.currentMode === ProcessingMode.DETECTION) {
+      return; // Already in detection mode
+    }
+
+    this.currentMode = ProcessingMode.DETECTION;
+    
+    Log.service({
+      service: 'Block Processor',
+      action: 'Switched to detection mode',
+      details: { previousMode: ProcessingMode.FULL }
+    });
+  }
+
+  /**
+   * Get current processing mode
+   */
+  public getCurrentMode(): ProcessingMode {
+    return this.currentMode;
+  }
+
+  /**
+   * Check if a migration stage indicates active migration
+   */
+  private isMigrationActive(stage: string): boolean {
+    const inactiveStages = ['NotStarted', 'Scheduled', 'Complete', 'Pending'];
+    return !inactiveStages.includes(stage);
+  }
+
+  /**
+   * Set migration start block number and persist scheduled stage to database
+   */
+  private async setMigrationBlockNumber(blockNumber: number): Promise<void> {
+    this.migrationStartBlockNumber = blockNumber;
+    
+    try {
+      // Check if a scheduled stage with this block number already exists
+      const existingScheduled = await db.query.migrationStages.findFirst({
+        where: and(
+          eq(migrationStages.chain, 'relay-chain'),
+          eq(migrationStages.stage, 'Scheduled'),
+          eq(migrationStages.scheduledBlockNumber, blockNumber)
+        ),
+      });
+      
+      if (existingScheduled) {
+        Log.service({
+          service: 'Block Processor',
+          action: 'Migration block number already exists in database, skipping insert',
+          details: { blockNumber, existingId: existingScheduled.id }
+        });
+        return;
+      }
+      
+      // Persist the scheduled migration stage to database
+      await db.insert(migrationStages).values({
+        stage: 'Scheduled',
+        chain: 'relay-chain',
+        details: JSON.stringify({ scheduled: { blockNumber } }),
+        scheduledBlockNumber: blockNumber,
+      });
+      
+      Log.service({
+        service: 'Block Processor',
+        action: 'Migration block number set and persisted to database',
+        details: { blockNumber }
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error persisting migration block number to database',
+        error: error as Error,
+        details: { blockNumber }
+      });
+      
+      // Still update internal state even if DB write fails
+      Log.service({
+        service: 'Block Processor',
+        action: 'Migration block number set (DB write failed but internal state updated)',
+        details: { blockNumber }
+      });
+    }
+  }
+
+  /**
+   * Get migration status for monitoring
+   */
+  public getMigrationStatus() {
+    return {
+      migrationStartBlockNumber: this.migrationStartBlockNumber,
+      currentMode: this.currentMode
+    };
+  }
+
+  /**
+   * Cleanup method for graceful shutdown
+   */
+  public async cleanup(): Promise<void> {
+    Log.service({
+      service: 'Block Processor',
+      action: 'Starting cleanup',
+    });
+
+    // Clear all queues and reset state
+    this.queue.get('relay-chain')!.length = 0;
+    this.queue.get('asset-hub')!.length = 0;
+    this.processing.set('relay-chain', false);
+    this.processing.set('asset-hub', false);
+    this.lastBlockNumber.set('relay-chain', 0);
+    this.lastBlockNumber.set('asset-hub', 0);
+    this.currentMode = ProcessingMode.DETECTION;
+    this.migrationStartBlockNumber = undefined;
+
+    Log.service({
+      service: 'Block Processor',
+      action: 'Cleanup completed',
+    });
+  }
+
+  /**
+   * Determine if we should do full processing for this block
+   * Only process if:
+   * 1. Migration has actually started, OR
+   * 2. We're within 2 blocks of the scheduled time (relay chain only)
+   */
+  private shouldProcessBlock(blockNumber: number, chain: 'relay-chain' | 'asset-hub'): boolean {
+    // 1. If we're within 2 blocks of scheduled time on relay chain, start processing
+    const migrationBlock = this.migrationStartBlockNumber;
+    if (migrationBlock && chain === 'relay-chain' && blockNumber >= (migrationBlock - 2)) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Processing block - within 2 blocks of scheduled migration',
+        details: { blockNumber, migrationBlock, blocksUntilMigration: migrationBlock - blockNumber }
+      });
+      return true;
+    }
+    
+    // 2. For asset hub, follow relay chain's lead - process if RC is processing
+    if (chain === 'asset-hub' && migrationBlock && blockNumber >= (migrationBlock - 2)) {
+      Log.service({
+        service: 'Block Processor', 
+        action: 'Processing Asset Hub block - following relay chain timing',
+        details: { blockNumber, migrationBlock }
+      });
+      return true;
+    }
+    
+    // Otherwise, skip heavy processing
+    return false;
+  }
+
   public getQueueStatus(): {
-    [chain: string]: {
+    'relay-chain': {
       length: number;
       processing: boolean;
       lastBlock: number;
       latestTimestamp?: number;
     };
+    'asset-hub': {
+      length: number;
+      processing: boolean;
+      lastBlock: number;
+      latestTimestamp?: number;
+    };
+    processingMode: ProcessingMode;
   } {
     const getLatestTimestamp = (chain: string) => {
       const chainQueue = this.queue.get(chain)!;
@@ -971,6 +1335,7 @@ export class BlockProcessor {
         lastBlock: this.lastBlockNumber.get('asset-hub')!,
         latestTimestamp: getLatestTimestamp('asset-hub'),
       },
+      processingMode: this.currentMode,
     };
   }
 }

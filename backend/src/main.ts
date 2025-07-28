@@ -9,8 +9,6 @@ import { Log } from './logging/Log';
 import { updatesHandler } from './routes/updates';
 import { BlockProcessor } from './services/BlockProcessor';
 import { FinalizedService } from './services/finalizedService';
-import { RuntimeManager } from './util/RuntimeManager';
-import { SubscriptionManager } from './util/SubscriptionManager';
 
 const app = express();
 const port = getConfig().port;
@@ -36,13 +34,13 @@ app.use(cors());
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
-  const runtimeManager = RuntimeManager.getInstance();
-  const subManager = SubscriptionManager.getInstance();
+  const blockProcessor = BlockProcessor.getInstance();
+  const finalizedService = FinalizedService.getInstance();
 
   res.json({
     status: 'ok',
-    rcMigratorAvailable: runtimeManager.isRcMigratorAvailable(),
-    allSubsInitialized: subManager.allSubsInitialized,
+    migrationStatus: blockProcessor.getMigrationStatus(),
+    subscriptions: finalizedService.getStatus()
   });
 });
 
@@ -62,12 +60,11 @@ app.get('/api/queue-status', (_req: Request, res: Response) => {
 app.get('/api/updates', updatesHandler);
 
 const main = async () => {
-  const subManager = SubscriptionManager.getInstance();
+  const blockProcessor = BlockProcessor.getInstance();
   const finalizedService = FinalizedService.getInstance();
 
-  // Initialize runtime detection and check current migration state
-  await subManager.initRuntimeDetection();
-  await subManager.checkCurrentMigrationStageInDB();
+  // Initialize BlockProcessor (includes DB state check)
+  await blockProcessor.initialize();
 
   // Start finalized head subscriptions (this replaces all old subscriptions)
   await finalizedService.start();
@@ -83,7 +80,7 @@ const main = async () => {
       });
 
       await finalizedService.stop();
-      await subManager.cleanup();
+      await blockProcessor.cleanup();
 
       server.close(() => {
         Log.service({

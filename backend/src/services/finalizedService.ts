@@ -6,6 +6,7 @@ import { Log } from '../logging/Log';
 
 import { AbstractApi } from './abstractApi';
 import { BlockProcessor } from './BlockProcessor';
+import { eventService } from './eventService';
 
 export class FinalizedService {
   private static instance: FinalizedService;
@@ -68,6 +69,13 @@ export class FinalizedService {
           details: { blockHash },
         });
 
+        // Emit to frontend
+        eventService.emit('rcHead', {
+          blockNumber,
+          blockHash,
+          timestamp: new Date().toISOString(),
+        });
+
         // Submit to BlockProcessor
         this.blockProcessor.addBlock('relay-chain', blockNumber, blockHash);
       });
@@ -102,6 +110,13 @@ export class FinalizedService {
           eventType: 'finalized_head',
           blockNumber,
           details: { blockHash },
+        });
+
+        // Emit to frontend
+        eventService.emit('ahHead', {
+          blockNumber,
+          blockHash,
+          timestamp: new Date().toISOString(),
         });
 
         // Submit to BlockProcessor
