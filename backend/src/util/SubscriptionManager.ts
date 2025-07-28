@@ -3,37 +3,15 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { migrationStages } from '../db/schema';
 import { Log } from '../logging/Log';
-import {
-  runAhEventsService,
-  runAhNewHeadsService,
-  runAhMigrationStageService,
-  runAhUmpPendingMessagesService,
-  runAhXcmMessageCounterService,
-} from '../services/ahService';
 import { eventService } from '../services/eventService';
-import {
-  runRcDmpDataMessageCountsService,
-  runRcNewHeadsService,
-  runRcMessageQueueProcessedService,
-  runRcMigrationStageService,
-  runRcXcmMessageCounterService,
-} from '../services/rcService';
 
 import { RuntimeManager } from './RuntimeManager';
 
-interface CleanupSub {
-  service: string;
-  action: string;
-  unsub: () => void;
-}
-
 export class SubscriptionManager {
   private static instance: SubscriptionManager;
-  private cleanUpSubs: CleanupSub[] = [];
   public migrationStartBlockNumber?: number | null = undefined;
   public migrationStarted?: boolean | null = undefined;
   public allSubsInitialized: boolean = false;
-  private rcMigrationStageServiceInitialized: boolean = false;
   private rcMigratorAvailableHandler?: () => Promise<void>;
 
   constructor() {}
@@ -70,265 +48,78 @@ export class SubscriptionManager {
 
   public setMigrationBlockNumber(blockNumber: number) {
     this.migrationStartBlockNumber = blockNumber;
+    
+    Log.service({
+      service: 'Subscription Manager',
+      action: 'Migration block number set',
+      details: { blockNumber }
+    });
   }
 
-  public async initRcPreMigrationService() {
+  /**
+   * Check if a migration stage indicates active migration
+   */
+  public isMigrationActive(stage: string): boolean {
+    const inactiveStages = ['NotStarted', 'Scheduled', 'Complete', 'Pending'];
+    return !inactiveStages.includes(stage);
+  }
+
+  /**
+   * Get current migration status
+   */
+  public getMigrationStatus() {
+    return {
+      migrationStarted: this.migrationStarted,
+      migrationStartBlockNumber: this.migrationStartBlockNumber,
+      allSubsInitialized: this.allSubsInitialized
+    };
+  }
+
+  public async initRuntimeDetection() {
     const runtimeManager = RuntimeManager.getInstance();
 
     Log.service({
       service: 'Subscription Manager',
-      action: 'Initializing pre-migration services',
+      action: 'Initializing runtime detection',
     });
 
     // Initialize runtime detection
     await runtimeManager.initializeRuntimeDetection();
 
-    // Define the handler for when rcMigrator becomes available
-    this.rcMigratorAvailableHandler = async () => {
-      Log.service({
-        service: 'Subscription Manager',
-        action: 'rcMigrator pallet is now available, initializing migration stage service',
-      });
-
-      // Remove the listener to prevent duplicate calls
-      if (this.rcMigratorAvailableHandler) {
-        eventService.off('rcMigratorAvailable', this.rcMigratorAvailableHandler);
-        this.rcMigratorAvailableHandler = undefined;
+    Log.service({
+      service: 'Subscription Manager',
+      action: 'Runtime detection initialized',
+      details: {
+        rcMigratorAvailable: runtimeManager.isRcMigratorAvailable()
       }
-
-      // Now safely initialize the migration stage service
-      await this.initializeRcMigrationStageService();
-    };
-
-    // If already available, initialize immediately
-    if (runtimeManager.isRcMigratorAvailable()) {
-      await this.initializeRcMigrationStageService();
-    } else {
-      // Only set up the listener if not already available
-      eventService.on('rcMigratorAvailable', this.rcMigratorAvailableHandler);
-    }
-
-    // Initialize other services that don't depend on rcMigrator
-    runRcNewHeadsService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up RC new heads subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'RC New Heads',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    runAhNewHeadsService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up AH new heads subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'AH new Heads',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
+    });
   }
 
   public async initAllMigrationSubs() {
-    const runtimeManager = RuntimeManager.getInstance();
-
-    Log.service({
-      service: 'Subscription Manager',
-      action: 'Initializing all migration services',
-    });
-
-    // Services that depend on rcMigrator pallet
-    if (runtimeManager.isRcMigratorAvailable()) {
-      await this.initializeRcMigratorDependentServices();
-    } else {
+    if (this.allSubsInitialized) {
       Log.service({
         service: 'Subscription Manager',
-        action: 'rcMigrator pallet not available, skipping dependent services',
-      });
-    }
-
-    // Services that don't depend on rcMigrator
-
-    runRcDmpDataMessageCountsService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up RC DMP data message counts subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'RC DMP Data Message Counts',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    runRcMessageQueueProcessedService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up RC events subscription',
-          unsub: result,
-        })
-      )
-      .catch((err: Error) =>
-        Log.service({
-          service: 'RC Message Queue Processed',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    runAhMigrationStageService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up AH migration stage subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'AH Migration Stage',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    runAhXcmMessageCounterService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up AH XCM message counter subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'AH XCM Message Counter',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    runAhEventsService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up AH events subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'AH Events',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    runAhUmpPendingMessagesService()
-      .then(result =>
-        this.cleanUpSubs.push({
-          service: 'Application',
-          action: 'Cleaning up AH UMP pending messages subscription',
-          unsub: result,
-        })
-      )
-      .catch(err =>
-        Log.service({
-          service: 'AH UMP Pending Messages',
-          action: 'Service start error',
-          error: err as Error,
-        })
-      );
-
-    this.allSubsInitialized = true;
-  }
-
-  private async initializeRcMigratorDependentServices(): Promise<void> {
-    // runRcXcmMessageCounterService depends on rcMigrator.dmpDataMessageCounts
-    try {
-      const rcXcmResult = await runRcXcmMessageCounterService();
-      this.cleanUpSubs.push({
-        service: 'Application',
-        action: 'Cleaning up RC XCM message counter subscription',
-        unsub: rcXcmResult,
-      });
-    } catch (err) {
-      Log.service({
-        service: 'RC XCM Message Counter',
-        action: 'Service start error',
-        error: err as Error,
-      });
-    }
-  }
-
-  private async initializeRcMigrationStageService(): Promise<void> {
-    if (this.rcMigrationStageServiceInitialized) {
-      Log.service({
-        service: 'Subscription Manager',
-        action: 'RC Migration Stage service already initialized, skipping',
+        action: 'Migration services already initialized, skipping',
       });
       return;
     }
 
-    try {
-      Log.service({
-        service: 'Subscription Manager',
-        action: 'Initializing RC Migration Stage service',
-      });
-
-      const unsubscribe = await runRcMigrationStageService();
-      this.cleanUpSubs.push({
-        service: 'Application',
-        action: 'Cleaning up RC migration stage subscription',
-        unsub: unsubscribe,
-      });
-
-      this.rcMigrationStageServiceInitialized = true;
-
-      Log.service({
-        service: 'Subscription Manager',
-        action: 'RC Migration Stage service initialized successfully',
-      });
-    } catch (error) {
-      Log.service({
-        service: 'RC Migration Stage',
-        action: 'Service start error',
-        error: error as Error,
-      });
-    }
-  }
-
-  public async cleanupAllSubs() {
     Log.service({
       service: 'Subscription Manager',
-      action: 'Starting cleanup of all subscriptions',
+      action: 'Migration services initialized - all processing now handled by BlockProcessor',
+      details: {
+        migrationStarted: this.migrationStarted,
+        migrationStartBlockNumber: this.migrationStartBlockNumber
+      }
     });
 
-    this.cleanUpSubs.forEach(info => {
-      Log.service({
-        service: info.service,
-        action: info.action,
-      });
+    this.allSubsInitialized = true;
+  }
 
-      info.unsub();
+  public async cleanup() {
+    Log.service({
+      service: 'Subscription Manager',
+      action: 'Starting cleanup',
     });
 
     // Clean up the runtime manager
@@ -341,9 +132,14 @@ export class SubscriptionManager {
       this.rcMigratorAvailableHandler = undefined;
     }
 
+    // Reset state
+    this.allSubsInitialized = false;
+    this.migrationStarted = undefined;
+    this.migrationStartBlockNumber = undefined;
+
     Log.service({
       service: 'Subscription Manager',
-      action: 'All subscriptions cleaned up',
+      action: 'Cleanup completed',
     });
   }
 }

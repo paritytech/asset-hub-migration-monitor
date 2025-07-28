@@ -314,6 +314,10 @@ export class BlockProcessor {
           await this.handleAssetHubUpwardMessageSent(event, item);
         }
       }
+
+      // Emit pallet migration events after processing all events in this block
+      const palletMigrationCache = PalletMigrationCache.getInstance();
+      palletMigrationCache.emitEvents();
     } catch (error) {
       Log.service({
         service: 'Block Processor',
@@ -877,6 +881,17 @@ export class BlockProcessor {
       if (migrationStage.isScheduled) {
         const subManager = SubscriptionManager.getInstance();
         subManager.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
+      }
+
+      // Check if we need to initialize migration services based on current stage
+      const subManager = SubscriptionManager.getInstance();
+      if (!subManager.allSubsInitialized && subManager.isMigrationActive(currentStage)) {
+        Log.service({
+          service: 'Block Processor', 
+          action: 'Active migration detected in finalized block, initializing services',
+          details: { stage: currentStage, blockNumber: item.blockNumber }
+        });
+        await subManager.initAllMigrationSubs();
       }
 
       const isNewStage = await timeInStageCache.recordStageStart(currentStage);

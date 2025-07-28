@@ -65,11 +65,12 @@ const main = async () => {
   const subManager = SubscriptionManager.getInstance();
   const finalizedService = FinalizedService.getInstance();
 
-  // Start finalized head subscriptions
-  await finalizedService.start();
-
-  await subManager.initRcPreMigrationService();
+  // Initialize runtime detection and check current migration state
+  await subManager.initRuntimeDetection();
   await subManager.checkCurrentMigrationStageInDB();
+
+  // Start finalized head subscriptions (this replaces all old subscriptions)
+  await finalizedService.start();
 
   // Handle termination signals
   const signals = ['SIGINT', 'SIGTERM', 'SIGQUIT'] as const;
@@ -82,7 +83,7 @@ const main = async () => {
       });
 
       await finalizedService.stop();
-      await subManager.cleanupAllSubs();
+      await subManager.cleanup();
 
       server.close(() => {
         Log.service({
