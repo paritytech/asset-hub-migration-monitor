@@ -1282,7 +1282,7 @@ export class BlockProcessor {
     }
     
     // 2. For asset hub, follow relay chain's lead - process if RC is processing
-    if (chain === 'asset-hub' && migrationBlock && blockNumber >= (migrationBlock - 2)) {
+    if (chain === 'asset-hub' && this.currentMode === ProcessingMode.FULL) {
       Log.service({
         service: 'Block Processor', 
         action: 'Processing Asset Hub block - following relay chain timing',
