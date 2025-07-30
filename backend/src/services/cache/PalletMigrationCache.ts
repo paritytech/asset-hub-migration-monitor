@@ -1,5 +1,5 @@
-import { eventService } from '../eventService';
 import { Log } from '../../logging/Log';
+import { eventService } from '../eventService';
 
 interface PalletMigrationData {
   palletName: string;
@@ -23,7 +23,7 @@ export class PalletMigrationCache {
 
   public addBatchData(palletName: string, itemsProcessed: number, itemsFailed: number): void {
     const existing = this.palletData.get(palletName);
-    
+
     if (existing) {
       // Update existing data
       existing.totalItemsProcessed += itemsProcessed;
@@ -45,7 +45,7 @@ export class PalletMigrationCache {
 
     // Convert map to array for emission
     const palletDataArray = Array.from(this.palletData.values());
-    
+
     // Emit individual pallet data
     palletDataArray.forEach(data => {
       eventService.emit('palletMigrationUpdate', {
@@ -111,7 +111,7 @@ export class PalletMigrationCache {
     }>;
   } {
     const palletDataArray = Array.from(this.palletData.values());
-    
+
     return {
       totalPallets: palletDataArray.length,
       totalItemsProcessed: palletDataArray.reduce((sum, data) => sum + data.totalItemsProcessed, 0),
@@ -124,4 +124,4 @@ export class PalletMigrationCache {
       })),
     };
   }
-} 
+}

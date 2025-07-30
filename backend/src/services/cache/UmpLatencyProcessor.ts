@@ -1,5 +1,6 @@
-import { eventService } from "../eventService";
-import { UmpMetricsCache } from "./UmpMetricsCache";
+import { eventService } from '../eventService';
+
+import { UmpMetricsCache } from './UmpMetricsCache';
 
 interface UmpEvent {
   timestamp: Date;
@@ -23,7 +24,7 @@ export class UmpLatencyProcessor {
 
   // Add upward message sent event
   public addUpwardMessageSent(timestamp: Date): void {
-    this.upwardMessageStack.push({ timestamp });    
+    this.upwardMessageStack.push({ timestamp });
     // Keep only the last maxStackSize events
     if (this.upwardMessageStack.length > this.maxStackSize) {
       this.upwardMessageStack.shift();
@@ -36,7 +37,7 @@ export class UmpLatencyProcessor {
   // Add message queue processed event
   public addMessageQueueProcessed(timestamp: Date): void {
     this.messageQueueStack.push({ timestamp });
-    
+
     // Keep only the last maxStackSize events
     if (this.messageQueueStack.length > this.maxStackSize) {
       this.messageQueueStack.shift();
@@ -54,7 +55,7 @@ export class UmpLatencyProcessor {
 
     // Get the first upward event
     const firstUpwardEvent = this.upwardMessageStack[0];
-    
+
     // Check if any message processed event has the same timestamp as the first upward event
     let matchedIndex = -1;
     for (let i = 0; i < this.messageQueueStack.length; i++) {
@@ -67,9 +68,10 @@ export class UmpLatencyProcessor {
     if (matchedIndex !== -1) {
       // Found a timestamp match, calculate latency
       const matchedQueueEvent = this.messageQueueStack[matchedIndex];
-      const latencyMs = matchedQueueEvent.timestamp.getTime() - firstUpwardEvent.timestamp.getTime();
+      const latencyMs =
+        matchedQueueEvent.timestamp.getTime() - firstUpwardEvent.timestamp.getTime();
       this.emitLatency(latencyMs, matchedQueueEvent.timestamp);
-      
+
       // Remove the matched events
       this.upwardMessageStack.shift();
       this.messageQueueStack.splice(matchedIndex, 1);
@@ -77,7 +79,7 @@ export class UmpLatencyProcessor {
       // No exact timestamp match found, use default latency for the first queue event
       const firstQueueEvent = this.messageQueueStack[0];
       this.emitLatency(this.defaultLatencyMs, firstQueueEvent.timestamp);
-      
+
       // Remove both the first queue event and the first upward message since no match was found
       this.messageQueueStack.shift();
       this.upwardMessageStack.shift();
@@ -108,4 +110,4 @@ export class UmpLatencyProcessor {
     this.upwardMessageStack = [];
     this.messageQueueStack = [];
   }
-} 
+}

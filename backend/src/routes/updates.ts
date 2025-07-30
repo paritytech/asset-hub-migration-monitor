@@ -5,11 +5,11 @@ import { db } from '../db';
 import { migrationStages, xcmMessageCounters } from '../db/schema';
 import { Log } from '../logging/Log';
 import { DmpMetricsCache } from '../services/cache/DmpMetricsCache';
-import { UmpMetricsCache } from '../services/cache/UmpMetricsCache';
-import { TimeInStageCache } from '../services/cache/TimeInStageCache';
 import { PalletMigrationCache } from '../services/cache/PalletMigrationCache';
-import { getPalletFromStage } from '../util/stageToPalletMapping';
+import { TimeInStageCache } from '../services/cache/TimeInStageCache';
+import { UmpMetricsCache } from '../services/cache/UmpMetricsCache';
 import { eventService } from '../services/eventService';
+import { getPalletFromStage } from '../util/stageToPalletMapping';
 
 const { logger } = Log;
 
@@ -110,11 +110,11 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
       if (rcStage) {
         // Get pallet name for this stage
         const palletName = getPalletFromStage(rcStage.stage);
-        
+
         // Get pallet timing information
         const timeInStageCache = TimeInStageCache.getInstance();
         const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
-        
+
         sendEvent('rcStageUpdate', {
           stage: rcStage.stage,
           details: rcStage.details ? JSON.parse(rcStage.details) : null,

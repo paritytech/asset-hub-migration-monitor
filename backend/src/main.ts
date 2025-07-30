@@ -7,8 +7,8 @@ import { getConfig } from './config';
 import { initializeDb } from './db/initializeDb';
 import { Log } from './logging/Log';
 import { updatesHandler } from './routes/updates';
-import { SubscriptionManager } from './util/SubscriptionManager';
-import { RuntimeManager } from './util/RuntimeManager';
+import { BlockProcessor } from './services/BlockProcessor';
+import { FinalizedService } from './services/finalizedService';
 
 const app = express();
 const port = getConfig().port;
@@ -34,25 +34,40 @@ app.use(cors());
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
-  const runtimeManager = RuntimeManager.getInstance();
-  const subManager = SubscriptionManager.getInstance();
-  
-  res.json({ 
+  const blockProcessor = BlockProcessor.getInstance();
+  const finalizedService = FinalizedService.getInstance();
+
+  res.json({
     status: 'ok',
-    rcMigratorAvailable: runtimeManager.isRcMigratorAvailable(),
-    allSubsInitialized: subManager.allSubsInitialized
+    migrationStatus: blockProcessor.getMigrationStatus(),
+    subscriptions: finalizedService.getStatus()
+  });
+});
+
+// Queue status endpoint to monitor BlockProcessor queue growth
+app.get('/api/queue-status', (_req: Request, res: Response) => {
+  const blockProcessor = BlockProcessor.getInstance();
+  const finalizedService = FinalizedService.getInstance();
+
+  res.json({
+    queues: blockProcessor.getQueueStatus(),
+    subscriptions: finalizedService.getStatus(),
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Consolidated SSE endpoint
 app.get('/api/updates', updatesHandler);
 
-
 const main = async () => {
-  const subManager = SubscriptionManager.getInstance();
+  const blockProcessor = BlockProcessor.getInstance();
+  const finalizedService = FinalizedService.getInstance();
 
-  await subManager.initRcPreMigrationService();
-  await subManager.checkCurrentMigrationStageInDB();
+  // Initialize BlockProcessor (includes DB state check)
+  await blockProcessor.initialize();
+
+  // Start finalized head subscriptions (this replaces all old subscriptions)
+  await finalizedService.start();
 
   // Handle termination signals
   const signals = ['SIGINT', 'SIGTERM', 'SIGQUIT'] as const;
@@ -64,8 +79,8 @@ const main = async () => {
         details: { signal },
       });
 
-      await subManager.cleanupAllSubs();
-
+      await finalizedService.stop();
+      await blockProcessor.cleanup();
 
       server.close(() => {
         Log.service({
@@ -97,10 +112,10 @@ const main = async () => {
       },
     });
   });
-}
+};
 
 try {
-  main()
-} catch(err) {
+  main();
+} catch (err) {
   console.error(err);
 }
