@@ -145,6 +145,14 @@ The frontend connects to the backend via Server-Sent Events (SSE) at `/api/updat
 - Shows connection status (connected/disconnected)
 - Defaults to `http://localhost:8080` in development
 
+**Query Parameter Configuration:**
+- You can also set the backend URL via query parameter: `?backend_url=http://your-backend:8080`
+- Examples:
+  - `http://localhost:3000?backend_url=http://192.168.1.100:8080`
+  - `http://localhost:3000?backend_url=https://api.yourdomain.com`
+- Query parameter takes precedence over defaults but can still be overridden via the UI input field
+- Useful for direct links to specific backend instances or automated testing
+
 **Development Setup:**
 - Uses `webpack.dev.js` configuration
 - Frontend expects the backend to be available at `http://localhost:8080` by default

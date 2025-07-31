@@ -18,9 +18,17 @@ interface EventSourceProviderProps {
   initialBackendUrl?: string;
 }
 
-// Get initial backend URL - defaults to localhost in development
+// Get initial backend URL - checks query param first, then defaults
 const getInitialBackendUrl = () => {
-  // In development, default to localhost
+  // Check for query parameter first
+  const urlParams = new URLSearchParams(window.location.search);
+  const backendUrlParam = urlParams.get('backend_url');
+  
+  if (backendUrlParam) {
+    return backendUrlParam;
+  }
+  
+  // Existing fallback logic
   if (process.env.NODE_ENV === 'development') {
     return 'http://localhost:8080';
   }
