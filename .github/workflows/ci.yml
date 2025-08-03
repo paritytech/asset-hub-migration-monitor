@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       VERSION: ${{ steps.version.outputs.VERSION }}
-      GH_ENVIRONMENT: ${{ steps.version.outputs.GH_ENVIRONMENT }}
     steps:
       - name: Define version
         id: version
@@ -39,16 +38,10 @@ jobs:
             echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           fi
           echo "set VERSION=${VERSION}"
-          if [[ ${GITHUB_EVENT_NAME} == "push" && ${GITHUB_REF} == "refs/heads/main" ]]
-          then
-            export GH_ENVIRONMENT="dockerhub"
-          else
-            export GH_ENVIRONMENT="default"
-          fi
   docker-build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: ${{ needs.set-variables.outputs.GH_ENVIRONMENT }}
+    environment: prod
     needs: [set-variables]
     strategy:
       fail-fast: false
@@ -75,5 +68,3 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ${{ env.IMAGE_NAME }}-${{ matrix.app }}:${{ needs.set-variables.outputs.VERSION }}
-
-      - run: echo ${{ env.TESTVAR }} # just to test if env variable is set
