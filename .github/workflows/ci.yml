@@ -43,6 +43,7 @@ jobs:
     timeout-minutes: 10
     needs: [set-variables]
     strategy:
+      fail-fast: false
       matrix:
         app:
           - frontend
@@ -51,12 +52,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # - name: Log in to dockerhub
-      #   if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_PASSWORD }}
-      #   uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-      #   with:
-      #     username: ${{ secrets.DOCKERHUB_USER }}
-      #     password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Log in to dockerhub
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and push Docker image from main
         uses: docker/build-push-action@v5
