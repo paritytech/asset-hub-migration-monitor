@@ -66,4 +66,4 @@ jobs:
           file: ./${{ matrix.app }}/Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
-            ${{ env.IMAGE_NAME }}-${{ matrix.app }}:${{ env.VERSION }}
+            ${{ env.IMAGE_NAME }}-${{ matrix.app }}:${{ needs.set-variables.outputs.VERSION }}
