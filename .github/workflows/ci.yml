@@ -75,3 +75,5 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ${{ env.IMAGE_NAME }}-${{ matrix.app }}:${{ needs.set-variables.outputs.VERSION }}
+
+      - run: echo ${{ env.TESTVAR }} # just to test if env variable is set
