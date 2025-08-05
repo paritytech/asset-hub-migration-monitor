@@ -36,11 +36,13 @@ function App() {
           <h1>Asset Hub Migration Monitor</h1>
         </div>
         <div className="header-info">
-          <BackendUrlInput
-            currentUrl={backendUrl}
-            onUrlChange={handleBackendUrlChange}
-            isConnected={isConnected}
-          />
+          {process.env.ALLOW_REMOTE_BACKEND === 'true' && (
+            <BackendUrlInput
+              currentUrl={backendUrl}
+              onUrlChange={handleBackendUrlChange}
+              isConnected={isConnected}
+            />
+          )}
           <span className="timestamp">Last updated: {new Date().toLocaleString()}</span>
           <div className="finalized-heads">
             <div className="head-display">

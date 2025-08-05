@@ -18,9 +18,14 @@ interface EventSourceProviderProps {
   initialBackendUrl?: string;
 }
 
-// Get initial backend URL - checks query param first, then defaults
+// Get initial backend URL - compile-time security check
 const getInitialBackendUrl = () => {
-  // Check for query parameter first
+  // Compile-time check: if remote backends are disabled, always use relative URLs
+  if (process.env.ALLOW_REMOTE_BACKEND !== 'true') {
+    return '';
+  }
+  
+  // Development mode: check for query parameter first
   const urlParams = new URLSearchParams(window.location.search);
   const backendUrlParam = urlParams.get('backend_url');
   
@@ -28,12 +33,8 @@ const getInitialBackendUrl = () => {
     return backendUrlParam;
   }
   
-  // Existing fallback logic
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:8080';
-  }
-  // In production, use relative URL by default
-  return '';
+  // Development fallback
+  return 'http://localhost:8080';
 };
 
 export const EventSourceProvider: React.FC<EventSourceProviderProps> = ({ 
@@ -147,6 +148,12 @@ export const EventSourceProvider: React.FC<EventSourceProviderProps> = ({
   }, [backendUrl, createEventSource, clearReconnectTimeout]);
 
   const setBackendUrl = useCallback((url: string) => {
+    // Compile-time check: prevent changing backend URL when remote backends are disabled
+    if (process.env.ALLOW_REMOTE_BACKEND !== 'true') {
+      console.warn('Backend URL changes are disabled for security reasons');
+      return;
+    }
+    
     // Clear any pending reconnection attempts when URL changes
     clearReconnectTimeout();
     reconnectAttemptsRef.current = 0;
