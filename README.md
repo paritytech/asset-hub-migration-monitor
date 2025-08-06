@@ -139,19 +139,20 @@ The application consists of two parts:
 The frontend connects to the backend via Server-Sent Events (SSE) at `/api/updates`. 
 
 **Dynamic Backend URL:**
-- The frontend includes a backend URL input field in the header
+- The frontend includes a backend URL input field in the header (development builds only)
 - Users can connect to any backend instance by entering the URL
 - Supports both local and remote backend instances
 - Shows connection status (connected/disconnected)
 - Defaults to `http://localhost:8080` in development
 
 **Query Parameter Configuration:**
-- You can also set the backend URL via query parameter: `?backend_url=http://your-backend:8080`
+- You can set the backend URL via query parameter: `?backend_url=http://your-backend:8080`
 - Examples:
   - `http://localhost:3000?backend_url=http://192.168.1.100:8080`
   - `http://localhost:3000?backend_url=https://api.yourdomain.com`
 - Query parameter takes precedence over defaults but can still be overridden via the UI input field
 - Useful for direct links to specific backend instances or automated testing
+- Only available in development builds
 
 **Development Setup:**
 - Uses `webpack.dev.js` configuration
@@ -166,15 +167,28 @@ ports:
 
 **Production Setup:**
 - Uses `webpack.prod.js` configuration
-- Frontend uses relative URLs (e.g., `/api/updates`) by default
-- Users can still connect to remote backends via the URL input
+- Frontend uses relative URLs (e.g., `/api/updates`) 
+- Backend URL input field is hidden
 - Build with: `yarn build` or `npm run build`
 
 **Usage:**
-1. Click the backend URL field in the header
+1. Click the backend URL field in the header (development only)
 2. Enter the backend URL (e.g., `localhost:8080`, `api.yourdomain.com`, `192.168.1.100:8080`)
 3. Click "Connect" to establish the connection
 4. The connection status will show green (connected) or red (disconnected)
+
+### Frontend Build Configuration
+
+The frontend uses the `ALLOW_REMOTE_BACKEND` environment variable to control backend URL configuration:
+
+- **Development builds**: `ALLOW_REMOTE_BACKEND=true` (set in `webpack.dev.js`)
+  - Backend URL input field is visible
+  - Query parameter backend URL works
+  
+- **Production builds**: `ALLOW_REMOTE_BACKEND=false` (set in `webpack.prod.js`)
+  - Backend URL input field is hidden
+  - Query parameter backend URL is disabled
+  - Uses relative URLs only
 
 ## Available Commands
 
