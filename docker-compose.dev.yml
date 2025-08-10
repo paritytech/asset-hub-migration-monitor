@@ -8,21 +8,28 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - ASSET_HUB_URL=ws://host.docker.internal:63170
       - RELAY_CHAIN_URL=ws://host.docker.internal:63168
       - PORT=8080
-      - LOG_LEVEL=info
+      - LOG_LEVEL=debug
     volumes:
       - ./backend/data:/app/data
+      - ./backend/src:/app/src  # Mount source for hot reload
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=development
+      - ALLOW_REMOTE_BACKEND=true
+    volumes:
+      - ./frontend/src:/app/src  # Mount source for hot reload
+      - ./frontend/public:/app/public
     restart: unless-stopped
     depends_on:
       - backend 

@@ -50,41 +50,82 @@ This command will:
 
 ## Docker Support
 
-### Running Backend with Docker
+### Running with Docker
 
-The backend can be run in a Docker container for easy deployment and consistency across environments.
+Both frontend and backend can be run in Docker containers for easy deployment and consistency across environments.
 
 #### Using Docker Compose (Recommended)
 
 ```bash
-# Build and start the backend
+# Build and start both frontend and backend
 docker-compose up --build
 
 # Run in background
 docker-compose up -d --build
 
-# Stop the service
+# Stop both services
 docker-compose down
+
+# Build and start only backend
+docker-compose up backend --build
+
+# Build and start only frontend
+docker-compose up frontend --build
 ```
+
+#### Development Docker Setup
+
+For development with hot reload and backend URL input support:
+
+```bash
+# Start development containers
+./start-dev.sh
+
+# Or use just commands
+just docker-dev      # Start with logs
+just docker-dev-bg   # Start in background
+just docker-dev-down # Stop containers
+```
+
+**Development Features:**
+- Hot reload for both frontend and backend
+- Backend URL input field enabled
+- Separate ports (Frontend: 3000, Backend: 8080)
+- Source code mounted as volumes
 
 #### Using Docker Commands
 
+**Backend:**
 ```bash
-# Build the image
+# Build the backend image
 docker build -t ah-monitoring-backend ./backend
 
-# Run the container
-docker run -p 3000:3000 -v $(pwd)/backend/data:/app/data ah-monitoring-backend
+# Run the backend container
+docker run -p 8080:8080 -v $(pwd)/backend/data:/app/data ah-monitoring-backend
 
 # Run in background
-docker run -d -p 3000:3000 -v $(pwd)/backend/data:/app/data --name ah-backend ah-monitoring-backend
-
-# Stop the container
-docker stop ah-backend
-
-# Remove the container
-docker rm ah-backend
+docker run -d -p 8080:8080 -v $(pwd)/backend/data:/app/data --name ah-backend ah-monitoring-backend
 ```
+
+**Frontend:**
+```bash
+# Build the frontend image
+docker build -t ah-monitoring-frontend ./frontend
+
+# Run the frontend container
+docker run -p 3000:3000 ah-monitoring-frontend
+
+# Run in background
+docker run -d -p 3000:3000 --name ah-frontend ah-monitoring-frontend
+
+# Stop containers
+docker stop ah-backend ah-frontend
+
+# Remove containers
+docker rm ah-backend ah-frontend
+```
+
+> **Note**: For production deployment, you'll need a reverse proxy (like nginx) to route `/` to the frontend container and `/api/*` to the backend container, since the production frontend uses relative URLs.
 
 #### Environment Variables with Docker
 
@@ -200,3 +241,6 @@ The frontend uses the `ALLOW_REMOTE_BACKEND` environment variable to control bac
 - `just clean` - Clean build artifacts
 - `just run` - Setup everything and run in development mode
 - `just run-clean` - Setup everything with clean database and run in development mode
+- `just docker-dev` - Start development Docker containers
+- `just docker-dev-bg` - Start development Docker containers in background
+- `just docker-dev-down` - Stop development Docker containers

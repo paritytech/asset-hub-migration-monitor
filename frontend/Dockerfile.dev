@@ -1,0 +1,23 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN corepack enable
+
+COPY package.json ./
+COPY yarn.lock ./
+COPY .yarnrc.yml ./
+COPY .yarn ./
+
+# Install dependencies
+RUN yarn --immutable
+
+# Copy webpack configs and other build files
+COPY webpack*.js ./
+COPY tsconfig.json ./
+
+# Expose port 3000
+EXPOSE 3000
+
+# Start development server with hot reload
+CMD ["yarn", "start"] 
