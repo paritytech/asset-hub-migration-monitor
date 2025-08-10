@@ -73,6 +73,26 @@ docker-compose up backend --build
 docker-compose up frontend --build
 ```
 
+#### Development Docker Setup
+
+For development with hot reload and backend URL input support:
+
+```bash
+# Start development containers
+./start-dev.sh
+
+# Or use just commands
+just docker-dev      # Start with logs
+just docker-dev-bg   # Start in background
+just docker-dev-down # Stop containers
+```
+
+**Development Features:**
+- Hot reload for both frontend and backend
+- Backend URL input field enabled
+- Separate ports (Frontend: 3000, Backend: 8080)
+- Source code mounted as volumes
+
 #### Using Docker Commands
 
 **Backend:**
@@ -221,3 +241,6 @@ The frontend uses the `ALLOW_REMOTE_BACKEND` environment variable to control bac
 - `just clean` - Clean build artifacts
 - `just run` - Setup everything and run in development mode
 - `just run-clean` - Setup everything with clean database and run in development mode
+- `just docker-dev` - Start development Docker containers
+- `just docker-dev-bg` - Start development Docker containers in background
+- `just docker-dev-down` - Stop development Docker containers
