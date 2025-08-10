@@ -105,6 +105,8 @@ docker stop ah-backend ah-frontend
 docker rm ah-backend ah-frontend
 ```
 
+> **Note**: For production deployment, you'll need a reverse proxy (like nginx) to route `/` to the frontend container and `/api/*` to the backend container, since the production frontend uses relative URLs.
+
 #### Environment Variables with Docker
 
 You can pass environment variables to the Docker container:
