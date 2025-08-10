@@ -15,4 +15,14 @@ services:
       - LOG_LEVEL=info
     volumes:
       - ./backend/data:/app/data
-    restart: unless-stopped 
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend 

@@ -50,40 +50,59 @@ This command will:
 
 ## Docker Support
 
-### Running Backend with Docker
+### Running with Docker
 
-The backend can be run in a Docker container for easy deployment and consistency across environments.
+Both frontend and backend can be run in Docker containers for easy deployment and consistency across environments.
 
 #### Using Docker Compose (Recommended)
 
 ```bash
-# Build and start the backend
+# Build and start both frontend and backend
 docker-compose up --build
 
 # Run in background
 docker-compose up -d --build
 
-# Stop the service
+# Stop both services
 docker-compose down
+
+# Build and start only backend
+docker-compose up backend --build
+
+# Build and start only frontend
+docker-compose up frontend --build
 ```
 
 #### Using Docker Commands
 
+**Backend:**
 ```bash
-# Build the image
+# Build the backend image
 docker build -t ah-monitoring-backend ./backend
 
-# Run the container
-docker run -p 3000:3000 -v $(pwd)/backend/data:/app/data ah-monitoring-backend
+# Run the backend container
+docker run -p 8080:8080 -v $(pwd)/backend/data:/app/data ah-monitoring-backend
 
 # Run in background
-docker run -d -p 3000:3000 -v $(pwd)/backend/data:/app/data --name ah-backend ah-monitoring-backend
+docker run -d -p 8080:8080 -v $(pwd)/backend/data:/app/data --name ah-backend ah-monitoring-backend
+```
 
-# Stop the container
-docker stop ah-backend
+**Frontend:**
+```bash
+# Build the frontend image
+docker build -t ah-monitoring-frontend ./frontend
 
-# Remove the container
-docker rm ah-backend
+# Run the frontend container
+docker run -p 3000:3000 ah-monitoring-frontend
+
+# Run in background
+docker run -d -p 3000:3000 --name ah-frontend ah-monitoring-frontend
+
+# Stop containers
+docker stop ah-backend ah-frontend
+
+# Remove containers
+docker rm ah-backend ah-frontend
 ```
 
 #### Environment Variables with Docker
