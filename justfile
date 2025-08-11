@@ -64,3 +64,22 @@ run-clean:
     just db-clean
     just build
     just dev
+
+# Run development Docker containers
+docker-dev:
+    #!/usr/bin/env bash
+    echo "Starting development Docker containers..."
+    docker-compose -f docker-compose.dev.yml up --build
+
+# Run development Docker containers in background
+docker-dev-bg:
+    #!/usr/bin/env bash
+    echo "Starting development Docker containers in background..."
+    docker-compose -f docker-compose.dev.yml up -d --build
+    echo "Containers started! Frontend: http://localhost:3000, Backend: http://localhost:8080"
+
+# Stop development Docker containers
+docker-dev-down:
+    #!/usr/bin/env bash
+    echo "Stopping development Docker containers..."
+    docker-compose -f docker-compose.dev.yml down
