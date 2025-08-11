@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: paritytech/ahmm
+
+jobs:
+  set-variables:
+    name: Set variables
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.version.outputs.VERSION }}
+    steps:
+      - name: Define version
+        id: version
+        run: |
+          export COMMIT_SHA=${{ github.sha }}
+          export COMMIT_SHA_SHORT=${COMMIT_SHA:0:8}
+          export REF_NAME=${{ github.ref_name }}
+          export REF_SLUG=${REF_NAME//\//_}
+          echo "short sha: ${COMMIT_SHA_SHORT}  slug: ${REF_SLUG}"
+          if [[ ${REF_SLUG} == "main" ]]
+          then
+            export VERSION=${REF_SLUG}-${COMMIT_SHA_SHORT}
+            echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          else
+            export VERSION=${REF_SLUG}
+            echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+          echo "set VERSION=${VERSION}"
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'prod' || null }}
+    needs: [set-variables]
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - frontend
+          - backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to dockerhub
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push Docker image from main
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.app }}
+          file: ./${{ matrix.app }}/Dockerfile
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.IMAGE_NAME }}-${{ matrix.app }}:${{ needs.set-variables.outputs.VERSION }}
