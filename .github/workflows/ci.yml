@@ -72,6 +72,7 @@ jobs:
   deploy-stg:
     name: Deploy Staging
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     needs: [set-variables, docker-build]
     environment: stg
     env:
