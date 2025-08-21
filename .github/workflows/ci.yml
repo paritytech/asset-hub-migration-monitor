@@ -101,7 +101,7 @@ jobs:
     permissions:
       contents: "read"
       id-token: "write"
-    environment: stg
+    environment: prod
     env:
       VERSION: ${{ needs.set-variables.outputs.VERSION }}
       ARGOCD_SERVER: "argocd-prod.teleport.parity.io"
