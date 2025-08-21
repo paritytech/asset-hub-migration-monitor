@@ -85,7 +85,7 @@ jobs:
           environment: "parity-stg"
           tag: "${{ env.VERSION }}"
           app_name: "${{ env.APP }}"
-          app_packages: "${{ env.APP }}"
+          app_packages: ""
           argocd_server: ${{ env.ARGOCD_SERVER }}
           teleport_token: ${{ env.APP }}
           teleport_app_name: "argocd-stg"
