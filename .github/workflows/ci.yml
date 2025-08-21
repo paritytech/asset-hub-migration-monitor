@@ -93,3 +93,27 @@ jobs:
           teleport_token: ${{ env.APP }}
           teleport_app_name: "argocd-stg"
           argocd_auth_token: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+  deploy-prod:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [set-variables, docker-build, deploy-stg]
+    permissions:
+      contents: "read"
+      id-token: "write"
+    environment: stg
+    env:
+      VERSION: ${{ needs.set-variables.outputs.VERSION }}
+      ARGOCD_SERVER: "argocd-prod.teleport.parity.io"
+    steps:
+      - name: Deploy to ArgoCD
+        uses: paritytech/argocd-deployment-action@main
+        with:
+          environment: "parity-prod"
+          tag: "${{ env.VERSION }}"
+          app_name: "${{ env.APP }}"
+          app_packages: "frontend,backend"
+          argocd_server: ${{ env.ARGOCD_SERVER }}
+          teleport_token: ${{ env.APP }}
+          teleport_app_name: "argocd-prod"
+          argocd_auth_token: ${{ secrets.ARGOCD_AUTH_TOKEN }}
