@@ -13,6 +13,7 @@ concurrency:
 
 env:
   IMAGE_NAME: paritytech/ahmm
+  APP: asset-hub-migration-monitor
 
 jobs:
   set-variables:
@@ -68,3 +69,24 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ${{ env.IMAGE_NAME }}-${{ matrix.app }}:${{ needs.set-variables.outputs.VERSION }}
+  deploy-stg:
+    name: Deploy Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [set-variables, docker-build]
+    environment: stg
+    env:
+      VERSION: ${{ needs.set-variables.outputs.VERSION }}
+      ARGOCD_SERVER: "argocd-stg.teleport.parity.io"
+    steps:
+      - name: Deploy to ArgoCD
+        uses: paritytech/argocd-deployment-action@main
+        with:
+          environment: "parity-stg"
+          tag: "${{ env.VERSION }}"
+          app_name: "${{ env.APP }}"
+          app_packages: "${{ env.APP }}"
+          argocd_server: ${{ env.ARGOCD_SERVER }}
+          teleport_token: ${{ env.APP }}
+          teleport_app_name: "argocd-stg"
+          argocd_auth_token: ${{ secrets.ARGOCD_AUTH_TOKEN }}
