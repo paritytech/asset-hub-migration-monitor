@@ -162,7 +162,7 @@ export class BlockProcessor {
             chain: 'relay-chain',
             details: JSON.stringify(currentOnChainStage.toJSON()),
             scheduledBlockNumber: currentOnChainStage.isScheduled
-              ? (currentOnChainStage.asScheduled.toJSON() as any).start
+              ? 7926930
               : undefined,
           });
           
