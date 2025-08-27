@@ -64,6 +64,8 @@ export class BlockProcessor {
     // Initialize last block numbers to 0
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
+    // CRISIS MODE: Force full processing mode immediately
+    this.currentMode = ProcessingMode.FULL;
   }
 
   /**
@@ -124,6 +126,80 @@ export class BlockProcessor {
         action: 'Migration block number loaded from database',
         details: { blockNumber: this.migrationStartBlockNumber }
       });
+    }
+
+    // Check live on-chain state if rcMigrator pallet exists
+    try {
+      const api = await AbstractApi.getInstance().getRelayChainApi();
+      
+      // Check if rcMigrator pallet exists
+      if (api.query.rcMigrator) {
+        const finalizedHead = await api.rpc.chain.getFinalizedHead();
+        const apiAt = await api.at(finalizedHead);
+        const currentOnChainStage = await apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>();
+        const stageType = currentOnChainStage.type;
+        
+        Log.service({
+          service: 'Block Processor',
+          action: 'Found rcMigrator pallet, checking current on-chain stage',
+          details: { stage: stageType }
+        });
+        
+        // Check if this is a new stage we haven't seen
+        const existingStage = await db.query.migrationStages.findFirst({
+          where: and(
+            eq(migrationStages.chain, 'relay-chain'),
+            eq(migrationStages.stage, stageType)
+          ),
+          orderBy: desc(migrationStages.timestamp),
+        });
+        
+        // If we haven't seen this stage recently, record it
+        if (!existingStage) {
+          console.log(currentOnChainStage.asScheduled.toJSON())
+          await db.insert(migrationStages).values({
+            stage: stageType,
+            chain: 'relay-chain',
+            details: JSON.stringify(currentOnChainStage.toJSON()),
+            scheduledBlockNumber: currentOnChainStage.isScheduled
+              ? 7926930
+              : undefined,
+          });
+          
+          Log.service({
+            service: 'Block Processor',
+            action: 'Recorded current on-chain migration stage to database',
+            details: { stage: stageType }
+          });
+        }
+        
+        // Switch to full mode if migration is active
+        if (this.isMigrationActive(stageType)) {
+          this.switchToFullMode();
+          Log.service({
+            service: 'Block Processor',
+            action: 'Active migration detected on-chain during initialization',
+            details: { stage: stageType }
+          });
+        }
+        
+        // Set migration block number if scheduled
+        if (currentOnChainStage.isScheduled) {
+          this.migrationStartBlockNumber = currentOnChainStage.asScheduled.blockNumber.toNumber();
+        }
+      } else {
+        Log.service({
+          service: 'Block Processor',
+          action: 'rcMigrator pallet not found, staying in detection mode'
+        });
+      }
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error checking on-chain migration state during initialization',
+        error: error as Error
+      });
+      // Continue with existing logic - don't fail initialization
     }
   }
 
