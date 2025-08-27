@@ -64,6 +64,8 @@ export class BlockProcessor {
     // Initialize last block numbers to 0
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
+    // CRISIS MODE: Force full processing mode immediately
+    this.currentMode = ProcessingMode.FULL;
   }
 
   /**
@@ -154,12 +156,13 @@ export class BlockProcessor {
         
         // If we haven't seen this stage recently, record it
         if (!existingStage) {
+          console.log(currentOnChainStage.asScheduled.toJSON())
           await db.insert(migrationStages).values({
             stage: stageType,
             chain: 'relay-chain',
             details: JSON.stringify(currentOnChainStage.toJSON()),
             scheduledBlockNumber: currentOnChainStage.isScheduled
-              ? currentOnChainStage.asScheduled.blockNumber.toNumber()
+              ? (currentOnChainStage.asScheduled.toJSON() as any).start
               : undefined,
           });
           
