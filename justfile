@@ -26,17 +26,31 @@ build:
     echo "Building frontend..."
     cd frontend && yarn build && cd ..
 
-# Run backend development server
+# Setup everything (install dependencies, setup DB, build)
+setup:
+    #!/usr/bin/env bash
+    just install
+    just db
+    just build
+
+# Setup everything with clean database
+setup-clean:
+    #!/usr/bin/env bash
+    just install
+    just db-clean
+    just build
+
+# Run backend development server (use in separate terminal)
 run-backend:
     #!/usr/bin/env bash
-    cd backend && yarn start && cd ..
+    cd backend && yarn dev && cd ..
 
-# Run frontend development server
+# Run frontend development server (use in separate terminal)
 run-frontend:
     #!/usr/bin/env bash
     cd frontend && yarn start && cd ..
 
-# Run both frontend and backend in development mode
+# Run both frontend and backend in development mode (single terminal, backgrounded)
 dev:
     #!/usr/bin/env bash
     just run-backend & just run-frontend
@@ -49,20 +63,16 @@ clean:
     echo "Cleaning frontend..."
     cd frontend && rm -rf dist
 
-# Setup everything and run in development mode
+# Legacy command - Setup everything and run in development mode
 run:
     #!/usr/bin/env bash
-    just install
-    just db
-    just build
+    just setup
     just dev
 
-# Setup everything and run in development mode, clean database first
+# Legacy command - Setup everything and run in development mode, clean database first
 run-clean:
     #!/usr/bin/env bash
-    just install
-    just db-clean
-    just build
+    just setup-clean
     just dev
 
 # Run development Docker containers

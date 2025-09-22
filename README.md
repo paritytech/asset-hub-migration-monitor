@@ -30,23 +30,46 @@ git clone git@github.com:TarikGul/asset-hub-migration-monitor.git
 cd asset-hub-migration-monitor
 ```
 
-2. Install dependencies and start the application:
+2. Setup the application (install dependencies, create DB, build):
 ```bash
-just run
+just setup
 ```
 
-or
-
-Install dependencies and start the application with a clean db:
+For a clean database setup:
 ```bash
-just run-clean
+just setup-clean
 ```
 
-This command will:
-- Install all dependencies for both frontend and backend
-- Build both frontend and backend
-- Migrate and create the DB
-- Start both development servers
+3. Run the application using separate terminals for better log visibility:
+
+**Terminal 1 - Backend:**
+```bash
+just run-backend
+```
+
+**Terminal 2 - Frontend:**
+```bash
+just run-frontend
+```
+
+This approach allows you to see all logs clearly in separate terminals and easily restart individual services.
+
+### Quick Start
+```bash
+# One-time setup
+just setup
+
+# Then in two separate terminals:
+# Terminal 1:
+just run-backend
+
+# Terminal 2:
+just run-frontend
+```
+
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8080
 
 ## Docker Support
 
@@ -233,14 +256,25 @@ The frontend uses the `ALLOW_REMOTE_BACKEND` environment variable to control bac
 
 ## Available Commands
 
+### Setup Commands
+- `just setup` - Setup everything (install dependencies, create DB, build)
+- `just setup-clean` - Setup everything with clean database
 - `just install` - Install dependencies for both frontend and backend
 - `just build` - Build both frontend and backend
-- `just run-backend` - Run backend development server
-- `just run-frontend` - Run frontend development server
-- `just dev` - Run both frontend and backend in development mode
+- `just db` - Create and migrate database
+- `just db-clean` - Clean database and recreate
 - `just clean` - Clean build artifacts
+
+### Development Commands
+- `just run-backend` - Run backend development server (use in separate terminal)
+- `just run-frontend` - Run frontend development server (use in separate terminal)
+- `just dev` - Run both frontend and backend in development mode (single terminal, backgrounded)
+
+### Legacy Commands (for backwards compatibility)
 - `just run` - Setup everything and run in development mode
 - `just run-clean` - Setup everything with clean database and run in development mode
+
+### Docker Commands
 - `just docker-dev` - Start development Docker containers
 - `just docker-dev-bg` - Start development Docker containers in background
 - `just docker-dev-down` - Stop development Docker containers
