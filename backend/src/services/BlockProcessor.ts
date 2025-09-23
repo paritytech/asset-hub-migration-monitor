@@ -54,7 +54,7 @@ export class BlockProcessor {
   private processing: Map<string, boolean> = new Map();
   private lastBlockNumber: Map<string, number> = new Map();
   private previousDmpQueueSize: number = 0;
-  private currentMode: ProcessingMode = ProcessingMode.DETECTION;
+  private currentMode: ProcessingMode = ProcessingMode.FULL;
   private migrationStartBlockNumber?: number;
   private rcMigrationStageSubscription: VoidFn | null = null;
 
@@ -78,8 +78,8 @@ export class BlockProcessor {
       // Check current migration state from database
       await this.checkCurrentMigrationStageInDB();
 
-      // Setup the rcMigrationStage subscription
-      await this.setupRcMigrationStageSubscription();
+      // Subscription disabled - using finalized block processing instead
+      // await this.setupRcMigrationStageSubscription();
 
       Log.service({
         service: 'Block Processor',
@@ -507,42 +507,11 @@ export class BlockProcessor {
         },
       });
 
-      // Process based on current mode
-      if (this.currentMode === ProcessingMode.DETECTION) {
-        // Detection mode: skip processing, subscription handles migration detection
-        Log.service({
-          service: 'Block Processor',
-          action: 'Skipping block processing in detection mode - subscription handles migration detection',
-          details: {
-            chain: item.chain,
-            blockNumber: item.blockNumber,
-            timestamp: new Date(item.timestamp!).toISOString()
-          }
-        });
-      } else if (this.currentMode === ProcessingMode.FULL) {
-        // Full mode: use existing shouldProcessBlock logic for efficiency
-        const shouldProcess = this.shouldProcessBlock(item.blockNumber, item.chain);
-        
-        // TODO: Fix this - It only will process if the scheduled block is saved, but what if the migration already started, and we dont have the block?
-        if (shouldProcess) {
-          // Full processing: events, storage queries, database writes
-          if (item.chain === 'asset-hub') {
-            await this.processAssetHubBlock(item, apiAt, events);
-          } else {
-            await this.processRelayChainBlock(item, apiAt, events);
-          }
-        } else {
-          // Lightweight processing: just track the block for gap detection
-          Log.service({
-            service: 'Block Processor',
-            action: 'Skipping full processing - not near migration',
-            details: { 
-              blockNumber: item.blockNumber, 
-              chain: item.chain,
-              timestamp: new Date(item.timestamp!).toISOString()
-            }
-          });
-        }
+      // Process all blocks in full mode
+      if (item.chain === 'asset-hub') {
+        await this.processAssetHubBlock(item, apiAt, events);
+      } else {
+        await this.processRelayChainBlock(item, apiAt, events);
       }
     } catch (error) {
       Log.service({
