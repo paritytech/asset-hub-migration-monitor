@@ -29,14 +29,18 @@ interface PalletRcMigratorCall extends Enum {
     | 'UpdateAhMsgProcessedCount';
 }
 
-/** @name PalletRcMigratorMigrationStage (441) */
+/** @name PalletRcMigratorMigrationStage (468) */
 export interface PalletRcMigratorMigrationStage extends Enum {
   readonly isPending: boolean;
   readonly isScheduled: boolean;
   readonly asScheduled: {
-    readonly blockNumber: u32;
+    readonly start: u32;
   } & Struct;
   readonly isWaitingForAh: boolean;
+  readonly isWarmUp: boolean;
+  readonly asWarmUp: {
+    readonly endAt: u32;
+  } & Struct;
   readonly isStarting: boolean;
   readonly isAccountsMigrationInit: boolean;
   readonly isAccountsMigrationOngoing: boolean;
@@ -50,6 +54,11 @@ export interface PalletRcMigratorMigrationStage extends Enum {
     readonly lastKey: Option<ITuple<[AccountId32, U8aFixed]>>;
   } & Struct;
   readonly isMultisigMigrationDone: boolean;
+  readonly isClaimsMigrationInit: boolean;
+  readonly isClaimsMigrationOngoing: boolean;
+  readonly asClaimsMigrationOngoing: {
+    readonly currentKey: Option<PalletRcMigratorClaimsClaimsStage>;
+  } & Struct;
   readonly isClaimsMigrationDone: boolean;
   readonly isProxyMigrationInit: boolean;
   readonly isProxyMigrationProxies: boolean;
@@ -91,12 +100,12 @@ export interface PalletRcMigratorMigrationStage extends Enum {
     readonly nextKey: Option<AccountId32>;
   } & Struct;
   readonly isVestingMigrationDone: boolean;
-  readonly isFastUnstakeMigrationInit: boolean;
-  readonly isFastUnstakeMigrationOngoing: boolean;
-  readonly asFastUnstakeMigrationOngoing: {
-    readonly nextKey: Option<PalletRcMigratorStakingFastUnstakeFastUnstakeStage>;
+  readonly isDelegatedStakingMigrationInit: boolean;
+  readonly isDelegatedStakingMigrationOngoing: boolean;
+  readonly asDelegatedStakingMigrationOngoing: {
+    readonly nextKey: Option<PalletRcMigratorStakingDelegatedStakingDelegatedStakingStage>;
   } & Struct;
-  readonly isFastUnstakeMigrationDone: boolean;
+  readonly isDelegatedStakingMigrationDone: boolean;
   readonly isIndicesMigrationInit: boolean;
   readonly isIndicesMigrationOngoing: boolean;
   readonly asIndicesMigrationOngoing: {
@@ -131,14 +140,35 @@ export interface PalletRcMigratorMigrationStage extends Enum {
     readonly lastKey: Option<PalletRcMigratorConvictionVotingConvictionVotingStage>;
   } & Struct;
   readonly isConvictionVotingMigrationDone: boolean;
+  readonly isBountiesMigrationInit: boolean;
+  readonly isBountiesMigrationOngoing: boolean;
+  readonly asBountiesMigrationOngoing: {
+    readonly lastKey: Option<PalletRcMigratorBountiesBountiesStage>;
+  } & Struct;
   readonly isBountiesMigrationDone: boolean;
+  readonly isChildBountiesMigrationInit: boolean;
+  readonly isChildBountiesMigrationOngoing: boolean;
+  readonly asChildBountiesMigrationOngoing: {
+    readonly lastKey: Option<PalletRcMigratorChildBountiesChildBountiesStage>;
+  } & Struct;
+  readonly isChildBountiesMigrationDone: boolean;
   readonly isAssetRateMigrationInit: boolean;
   readonly isAssetRateMigrationOngoing: boolean;
   readonly asAssetRateMigrationOngoing: {
     readonly lastKey: Option<PolkadotRuntimeCommonImplsVersionedLocatableAsset>;
   } & Struct;
   readonly isAssetRateMigrationDone: boolean;
+  readonly isCrowdloanMigrationInit: boolean;
+  readonly isCrowdloanMigrationOngoing: boolean;
+  readonly asCrowdloanMigrationOngoing: {
+    readonly lastKey: Option<PalletRcMigratorCrowdloanCrowdloanStage>;
+  } & Struct;
   readonly isCrowdloanMigrationDone: boolean;
+  readonly isTreasuryMigrationInit: boolean;
+  readonly isTreasuryMigrationOngoing: boolean;
+  readonly asTreasuryMigrationOngoing: {
+    readonly lastKey: Option<PalletRcMigratorTreasuryTreasuryStage>;
+  } & Struct;
   readonly isTreasuryMigrationDone: boolean;
   readonly isStakingMigrationInit: boolean;
   readonly isStakingMigrationOngoing: boolean;
@@ -146,69 +176,54 @@ export interface PalletRcMigratorMigrationStage extends Enum {
     readonly nextKey: Option<PalletRcMigratorStakingStakingStage>;
   } & Struct;
   readonly isStakingMigrationDone: boolean;
+  readonly isCoolOff: boolean;
+  readonly asCoolOff: {
+    readonly endAt: u32;
+  } & Struct;
   readonly isSignalMigrationFinish: boolean;
   readonly isMigrationDone: boolean;
-  readonly type:
-    | 'Pending'
-    | 'Scheduled'
-    | 'WaitingForAh'
-    | 'Starting'
-    | 'AccountsMigrationInit'
-    | 'AccountsMigrationOngoing'
-    | 'AccountsMigrationDone'
-    | 'MultisigMigrationInit'
-    | 'MultisigMigrationOngoing'
-    | 'MultisigMigrationDone'
-    | 'ClaimsMigrationDone'
-    | 'ProxyMigrationInit'
-    | 'ProxyMigrationProxies'
-    | 'ProxyMigrationAnnouncements'
-    | 'ProxyMigrationDone'
-    | 'PreimageMigrationInit'
-    | 'PreimageMigrationChunksOngoing'
-    | 'PreimageMigrationChunksDone'
-    | 'PreimageMigrationRequestStatusOngoing'
-    | 'PreimageMigrationRequestStatusDone'
-    | 'PreimageMigrationLegacyRequestStatusInit'
-    | 'PreimageMigrationLegacyRequestStatusOngoing'
-    | 'PreimageMigrationLegacyRequestStatusDone'
-    | 'PreimageMigrationDone'
-    | 'NomPoolsMigrationInit'
-    | 'NomPoolsMigrationOngoing'
-    | 'NomPoolsMigrationDone'
-    | 'VestingMigrationInit'
-    | 'VestingMigrationOngoing'
-    | 'VestingMigrationDone'
-    | 'FastUnstakeMigrationInit'
-    | 'FastUnstakeMigrationOngoing'
-    | 'FastUnstakeMigrationDone'
-    | 'IndicesMigrationInit'
-    | 'IndicesMigrationOngoing'
-    | 'IndicesMigrationDone'
-    | 'ReferendaMigrationInit'
-    | 'ReferendaMigrationOngoing'
-    | 'ReferendaMigrationDone'
-    | 'BagsListMigrationInit'
-    | 'BagsListMigrationOngoing'
-    | 'BagsListMigrationDone'
-    | 'SchedulerMigrationInit'
-    | 'SchedulerMigrationOngoing'
-    | 'SchedulerAgendaMigrationOngoing'
-    | 'SchedulerMigrationDone'
-    | 'ConvictionVotingMigrationInit'
-    | 'ConvictionVotingMigrationOngoing'
-    | 'ConvictionVotingMigrationDone'
-    | 'BountiesMigrationDone'
-    | 'AssetRateMigrationInit'
-    | 'AssetRateMigrationOngoing'
-    | 'AssetRateMigrationDone'
-    | 'CrowdloanMigrationDone'
-    | 'TreasuryMigrationDone'
-    | 'StakingMigrationInit'
-    | 'StakingMigrationOngoing'
-    | 'StakingMigrationDone'
-    | 'SignalMigrationFinish'
-    | 'MigrationDone';
+  readonly type: 'Pending' | 'Scheduled' | 'WaitingForAh' | 'WarmUp' | 'Starting' | 'AccountsMigrationInit' | 'AccountsMigrationOngoing' | 'AccountsMigrationDone' | 'MultisigMigrationInit' | 'MultisigMigrationOngoing' | 'MultisigMigrationDone' | 'ClaimsMigrationInit' | 'ClaimsMigrationOngoing' | 'ClaimsMigrationDone' | 'ProxyMigrationInit' | 'ProxyMigrationProxies' | 'ProxyMigrationAnnouncements' | 'ProxyMigrationDone' | 'PreimageMigrationInit' | 'PreimageMigrationChunksOngoing' | 'PreimageMigrationChunksDone' | 'PreimageMigrationRequestStatusOngoing' | 'PreimageMigrationRequestStatusDone' | 'PreimageMigrationLegacyRequestStatusInit' | 'PreimageMigrationLegacyRequestStatusOngoing' | 'PreimageMigrationLegacyRequestStatusDone' | 'PreimageMigrationDone' | 'NomPoolsMigrationInit' | 'NomPoolsMigrationOngoing' | 'NomPoolsMigrationDone' | 'VestingMigrationInit' | 'VestingMigrationOngoing' | 'VestingMigrationDone' | 'DelegatedStakingMigrationInit' | 'DelegatedStakingMigrationOngoing' | 'DelegatedStakingMigrationDone' | 'IndicesMigrationInit' | 'IndicesMigrationOngoing' | 'IndicesMigrationDone' | 'ReferendaMigrationInit' | 'ReferendaMigrationOngoing' | 'ReferendaMigrationDone' | 'BagsListMigrationInit' | 'BagsListMigrationOngoing' | 'BagsListMigrationDone' | 'SchedulerMigrationInit' | 'SchedulerMigrationOngoing' | 'SchedulerAgendaMigrationOngoing' | 'SchedulerMigrationDone' | 'ConvictionVotingMigrationInit' | 'ConvictionVotingMigrationOngoing' | 'ConvictionVotingMigrationDone' | 'BountiesMigrationInit' | 'BountiesMigrationOngoing' | 'BountiesMigrationDone' | 'ChildBountiesMigrationInit' | 'ChildBountiesMigrationOngoing' | 'ChildBountiesMigrationDone' | 'AssetRateMigrationInit' | 'AssetRateMigrationOngoing' | 'AssetRateMigrationDone' | 'CrowdloanMigrationInit' | 'CrowdloanMigrationOngoing' | 'CrowdloanMigrationDone' | 'TreasuryMigrationInit' | 'TreasuryMigrationOngoing' | 'TreasuryMigrationDone' | 'StakingMigrationInit' | 'StakingMigrationOngoing' | 'StakingMigrationDone' | 'CoolOff' | 'SignalMigrationFinish' | 'MigrationDone';
+}
+
+/** @name PalletRcMigratorStakingDelegatedStakingDelegatedStakingStage (480) */
+interface PalletRcMigratorStakingDelegatedStakingDelegatedStakingStage extends Enum {
+  readonly isDelegators: boolean;
+  readonly asDelegators: Option<AccountId32>;
+  readonly isAgents: boolean;
+  readonly asAgents: Option<AccountId32>;
+  readonly isFinished: boolean;
+  readonly type: 'Delegators' | 'Agents' | 'Finished';
+}
+
+/** @name PalletRcMigratorChildBountiesChildBountiesStage (495) */
+interface PalletRcMigratorChildBountiesChildBountiesStage extends Enum {
+  readonly isChildBountyCount: boolean;
+  readonly isParentChildBounties: boolean;
+  readonly asParentChildBounties: {
+    readonly parentId: Option<u32>;
+  } & Struct;
+  readonly isParentTotalChildBounties: boolean;
+  readonly asParentTotalChildBounties: {
+    readonly parentId: Option<u32>;
+  } & Struct;
+  readonly isChildBounties: boolean;
+  readonly asChildBounties: {
+    readonly ids: Option<ITuple<[u32, u32]>>;
+  } & Struct;
+  readonly isChildBountyDescriptionsV1: boolean;
+  readonly asChildBountyDescriptionsV1: {
+    readonly ids: Option<ITuple<[u32, u32]>>;
+  } & Struct;
+  readonly isV0ToV1ChildBountyIds: boolean;
+  readonly asV0ToV1ChildBountyIds: {
+    readonly childId: Option<u32>;
+  } & Struct;
+  readonly isChildrenCuratorFees: boolean;
+  readonly asChildrenCuratorFees: {
+    readonly childId: Option<u32>;
+  } & Struct;
+  readonly isFinished: boolean;
+  readonly type: 'ChildBountyCount' | 'ParentChildBounties' | 'ParentTotalChildBounties' | 'ChildBounties' | 'ChildBountyDescriptionsV1' | 'V0ToV1ChildBountyIds' | 'ChildrenCuratorFees' | 'Finished';
 }
 
 interface PalletRcMigratorStakingStakingStage extends Enum {

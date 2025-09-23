@@ -7,6 +7,7 @@ import type {
   PolkadotCorePrimitivesInboundDownwardMessage,
 } from '@polkadot/types/lookup';
 import type { ITuple } from '@polkadot/types/types';
+import type { VoidFn } from '@polkadot/api/types';
 
 import { eq, desc, and } from 'drizzle-orm';
 
@@ -30,6 +31,7 @@ import { PalletMigrationCache } from './cache/PalletMigrationCache';
 import { TimeInStageCache } from './cache/TimeInStageCache';
 import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
 import { eventService } from './eventService';
+import { isUndefined } from '@polkadot/util';
 
 // TODO: Ensure we handle migration stages correctly.
 
@@ -54,6 +56,7 @@ export class BlockProcessor {
   private previousDmpQueueSize: number = 0;
   private currentMode: ProcessingMode = ProcessingMode.DETECTION;
   private migrationStartBlockNumber?: number;
+  private rcMigrationStageSubscription: VoidFn | null = null;
 
   private constructor() {
     // Initialize queues for both chains
@@ -64,8 +67,7 @@ export class BlockProcessor {
     // Initialize last block numbers to 0
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
-    // CRISIS MODE: Force full processing mode immediately
-    this.currentMode = ProcessingMode.FULL;
+    // Start in detection mode - subscription will switch to full mode when needed
   }
 
   /**
@@ -75,7 +77,10 @@ export class BlockProcessor {
     try {
       // Check current migration state from database
       await this.checkCurrentMigrationStageInDB();
-      
+
+      // Setup the rcMigrationStage subscription
+      await this.setupRcMigrationStageSubscription();
+
       Log.service({
         service: 'Block Processor',
         action: 'BlockProcessor initialized',
@@ -89,6 +94,184 @@ export class BlockProcessor {
         service: 'Block Processor',
         action: 'Error during initialization',
         error: error as Error
+      });
+    }
+  }
+
+  /**
+   * Setup subscription to rcMigrationStage storage for real-time migration detection
+   */
+  private async setupRcMigrationStageSubscription(): Promise<void> {
+    try {
+      const api = await AbstractApi.getInstance().getRelayChainApi();
+
+      // Check if rcMigrator pallet exists
+      if (!api.query.rcMigrator) {
+        Log.service({
+          service: 'Block Processor',
+          action: 'rcMigrator pallet not found, skipping subscription setup'
+        });
+        return;
+      }
+
+      // Subscribe to rcMigrationStage storage using the correct subscription pattern
+      const unsubscribeFn = await api.query.rcMigrator.rcMigrationStage((stage: PalletRcMigratorMigrationStage) => {
+        // Use setTimeout to avoid blocking the subscription callback
+        setTimeout(() => {
+          this.handleRcMigrationStageSubscription(stage);
+        }, 0);
+      });
+
+      // Type assertion to fix TypeScript issue - Polkadot.js subscriptions return VoidFn
+      this.rcMigrationStageSubscription = unsubscribeFn as unknown as VoidFn;
+
+      Log.service({
+        service: 'Block Processor',
+        action: 'rcMigrationStage subscription setup successfully'
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error setting up rcMigrationStage subscription',
+        error: error as Error
+      });
+      // Don't throw - continue without subscription
+    }
+  }
+
+  /**
+   * Handle rcMigrationStage subscription updates
+   */
+  private async handleRcMigrationStageSubscription(stage: PalletRcMigratorMigrationStage): Promise<void> {
+    try {
+      const stageType = stage.type;
+
+      Log.service({
+        service: 'Block Processor',
+        action: 'rcMigrationStage subscription update received',
+        details: { stage: stageType }
+      });
+
+      // Check if stage is "Scheduled" and extract block number
+      if (stage.isScheduled) {
+        const scheduledBlock = stage.asScheduled.start.toNumber();
+
+        Log.service({
+          service: 'Block Processor',
+          action: 'Migration scheduled detected via subscription',
+          details: {
+            scheduledBlock,
+            previousMode: this.currentMode
+          }
+        });
+
+        // Set migration block number internally and persist to DB
+        await this.setMigrationBlockNumber(scheduledBlock);
+
+        // Persist the stage to database
+        await this.persistMigrationStage(stage, scheduledBlock);
+
+      } else if (this.isMigrationActive(stageType)) {
+        Log.service({
+          service: 'Block Processor',
+          action: 'Active migration detected via subscription, switching to full mode',
+          details: {
+            stage: stageType,
+            previousMode: this.currentMode
+          }
+        });
+
+        // Switch to full processing mode
+        this.switchToFullMode();
+
+        // Persist the stage to database
+        await this.persistMigrationStage(stage);
+      } else {
+        Log.service({
+          service: 'Block Processor',
+          action: 'Inactive migration stage detected via subscription',
+          details: { stage: stageType }
+        });
+
+        // Still persist to database for tracking
+        await this.persistMigrationStage(stage);
+      }
+
+      // Always emit event for frontend regardless of stage type
+      await this.emitStageUpdateEvent(stage);
+
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error handling rcMigrationStage subscription update',
+        error: error as Error
+      });
+    }
+  }
+
+  /**
+   * Emit stage update event for frontend
+   */
+  private async emitStageUpdateEvent(stage: PalletRcMigratorMigrationStage): Promise<void> {
+    const timeInStageCache = TimeInStageCache.getInstance();
+    const currentStage = stage.type;
+
+    const isNewStage = await timeInStageCache.recordStageStart(currentStage);
+    const palletName = getPalletFromStage(currentStage);
+    const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
+
+    eventService.emit('rcStageUpdate', {
+      stage: currentStage,
+      chain: 'relay-chain',
+      details: stage.toJSON(),
+      timestamp: new Date().toISOString(),
+      palletName: palletName || null,
+      scheduledBlockNumber: stage.isScheduled
+        ? stage.asScheduled.start.toNumber()
+        : null,
+      palletInitStartedAt: palletInfo?.initStartedAt || null,
+      timeInPallet: palletInfo?.timeInPallet || null,
+      isNewStage,
+      isPalletCompleted: palletInfo?.isCompleted || false,
+      palletTotalDuration: palletInfo?.totalDuration || null,
+      currentPalletStage: palletInfo?.currentStage || null,
+    });
+
+    Log.service({
+      service: 'Block Processor',
+      action: 'Emitted rcStageUpdate event via subscription',
+      details: {
+        stage: currentStage,
+        palletName,
+        isNewStage,
+        scheduledBlockNumber: stage.isScheduled ? stage.asScheduled.start.toNumber() : null,
+      }
+    });
+  }
+
+  /**
+   * Persist migration stage to database
+   */
+  private async persistMigrationStage(stage: PalletRcMigratorMigrationStage, scheduledBlockNumber?: number): Promise<void> {
+    try {
+      await db.insert(migrationStages).values({
+        stage: stage.type,
+        chain: 'relay-chain',
+        details: JSON.stringify(stage.toJSON()),
+        scheduledBlockNumber: scheduledBlockNumber || (stage.isScheduled ? stage.asScheduled.start.toNumber() : undefined),
+      });
+
+      Log.service({
+        service: 'Block Processor',
+        action: 'Migration stage persisted to database',
+        details: { stage: stage.type, scheduledBlockNumber }
+      });
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error persisting migration stage to database',
+        error: error as Error,
+        details: { stage: stage.type }
       });
     }
   }
@@ -128,79 +311,14 @@ export class BlockProcessor {
       });
     }
 
-    // Check live on-chain state if rcMigrator pallet exists
-    try {
-      const api = await AbstractApi.getInstance().getRelayChainApi();
-      
-      // Check if rcMigrator pallet exists
-      if (api.query.rcMigrator) {
-        const finalizedHead = await api.rpc.chain.getFinalizedHead();
-        const apiAt = await api.at(finalizedHead);
-        const currentOnChainStage = await apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>();
-        const stageType = currentOnChainStage.type;
-        
-        Log.service({
-          service: 'Block Processor',
-          action: 'Found rcMigrator pallet, checking current on-chain stage',
-          details: { stage: stageType }
-        });
-        
-        // Check if this is a new stage we haven't seen
-        const existingStage = await db.query.migrationStages.findFirst({
-          where: and(
-            eq(migrationStages.chain, 'relay-chain'),
-            eq(migrationStages.stage, stageType)
-          ),
-          orderBy: desc(migrationStages.timestamp),
-        });
-        
-        // If we haven't seen this stage recently, record it
-        if (!existingStage) {
-          console.log(currentOnChainStage.asScheduled.toJSON())
-          await db.insert(migrationStages).values({
-            stage: stageType,
-            chain: 'relay-chain',
-            details: JSON.stringify(currentOnChainStage.toJSON()),
-            scheduledBlockNumber: currentOnChainStage.isScheduled
-              ? 7926930
-              : undefined,
-          });
-          
-          Log.service({
-            service: 'Block Processor',
-            action: 'Recorded current on-chain migration stage to database',
-            details: { stage: stageType }
-          });
-        }
-        
-        // Switch to full mode if migration is active
-        if (this.isMigrationActive(stageType)) {
-          this.switchToFullMode();
-          Log.service({
-            service: 'Block Processor',
-            action: 'Active migration detected on-chain during initialization',
-            details: { stage: stageType }
-          });
-        }
-        
-        // Set migration block number if scheduled
-        if (currentOnChainStage.isScheduled) {
-          this.migrationStartBlockNumber = currentOnChainStage.asScheduled.blockNumber.toNumber();
-        }
-      } else {
-        Log.service({
-          service: 'Block Processor',
-          action: 'rcMigrator pallet not found, staying in detection mode'
-        });
+    Log.service({
+      service: 'Block Processor',
+      action: 'Database state loaded - subscription will handle real-time migration detection',
+      details: {
+        migrationStartBlockNumber: this.migrationStartBlockNumber,
+        currentMode: this.currentMode
       }
-    } catch (error) {
-      Log.service({
-        service: 'Block Processor',
-        action: 'Error checking on-chain migration state during initialization',
-        error: error as Error
-      });
-      // Continue with existing logic - don't fail initialization
-    }
+    });
   }
 
   public static getInstance(): BlockProcessor {
@@ -391,24 +509,21 @@ export class BlockProcessor {
 
       // Process based on current mode
       if (this.currentMode === ProcessingMode.DETECTION) {
-        // Detection mode: only process relay chain for migration events
-        if (item.chain === 'relay-chain') {
-          await this.processRelayChainDetectionOnly(item, events);
-        } else {
-          // Skip Asset Hub processing in detection mode
-          Log.service({
-            service: 'Block Processor',
-            action: 'Skipping Asset Hub block in detection mode',
-            details: { 
-              blockNumber: item.blockNumber,
-              timestamp: new Date(item.timestamp!).toISOString()
-            }
-          });
-        }
+        // Detection mode: skip processing, subscription handles migration detection
+        Log.service({
+          service: 'Block Processor',
+          action: 'Skipping block processing in detection mode - subscription handles migration detection',
+          details: {
+            chain: item.chain,
+            blockNumber: item.blockNumber,
+            timestamp: new Date(item.timestamp!).toISOString()
+          }
+        });
       } else if (this.currentMode === ProcessingMode.FULL) {
         // Full mode: use existing shouldProcessBlock logic for efficiency
         const shouldProcess = this.shouldProcessBlock(item.blockNumber, item.chain);
         
+        // TODO: Fix this - It only will process if the scheduled block is saved, but what if the migration already started, and we dont have the block?
         if (shouldProcess) {
           // Full processing: events, storage queries, database writes
           if (item.chain === 'asset-hub') {
@@ -735,12 +850,11 @@ export class BlockProcessor {
     item: QueueItem
   ): Promise<void> {
     try {
-      const [dmpDataMessageCounts, pendingUpwardMessages] = await Promise.all([
-        apiAt.query.ahMigrator.dmpDataMessageCounts<ITuple<[u32, u32]>>(),
+      const [pendingUpwardMessages] = await Promise.all([
+        // apiAt.query.ahMigrator.dmpDataMessageCounts<ITuple<[u32, u32]>>(),
         apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
       ]);
 
-      await this.handleAhDmpDataMessageCounts(dmpDataMessageCounts, item);
       await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
       // TODO: Query Asset Hub specific storage:
       // - ahMigrator.ahMigrationStage (Do we actually need this?)
@@ -768,9 +882,8 @@ export class BlockProcessor {
     item: QueueItem
   ): Promise<void> {
     try {
-      const [migrationStage, dmpMessageCount, dmpMessageQueue] = await Promise.all([
+      const [migrationStage, dmpMessageQueue] = await Promise.all([
         apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
-        apiAt.query.rcMigrator.dmpDataMessageCounts<ITuple<[u32, u32]>>(),
         apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
           1000
         ),
@@ -778,7 +891,7 @@ export class BlockProcessor {
 
       // TODO: Is there specific ordering to this or can we put it in a Promise.all?
       await this.handleRcMigrationStage(migrationStage, item);
-      await this.handleRcDmpDataMessageCounts(dmpMessageCount, item);
+      // await this.handleRcDmpDataMessageCounts(dmpMessageCount, item);
       await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
 
       Log.service({
@@ -1051,12 +1164,12 @@ export class BlockProcessor {
         chain: 'relay-chain',
         details: JSON.stringify(migrationStage.toJSON()),
         scheduledBlockNumber: migrationStage.isScheduled
-          ? migrationStage.asScheduled.blockNumber.toNumber()
+          ? migrationStage.asScheduled.start.toNumber()
           : undefined,
       });
 
       if (migrationStage.isScheduled) {
-        await this.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
+        await this.setMigrationBlockNumber(migrationStage.asScheduled.start.toNumber());
       }
 
       // Check if we need to switch to full processing based on current stage
@@ -1080,7 +1193,7 @@ export class BlockProcessor {
         timestamp: new Date(item.timestamp!).toISOString(),
         palletName: palletName || null,
         scheduledBlockNumber: migrationStage.isScheduled
-          ? migrationStage.asScheduled.blockNumber.toNumber()
+          ? migrationStage.asScheduled.start.toNumber()
           : null,
         palletInitStartedAt: palletInfo?.initStartedAt || null,
         timeInPallet: palletInfo?.timeInPallet || null,
@@ -1100,7 +1213,7 @@ export class BlockProcessor {
           timeInPallet: palletInfo?.timeInPallet || null,
           isPalletCompleted: palletInfo?.isCompleted || false,
           scheduledBlockNumber: migrationStage.isScheduled
-            ? migrationStage.asScheduled.blockNumber.toNumber()
+            ? migrationStage.asScheduled.start.toNumber()
             : null,
         },
       });
@@ -1113,90 +1226,6 @@ export class BlockProcessor {
     }
   }
 
-  /**
-   * Lightweight detection mode - only looks for migration scheduling events on Relay Chain
-   */
-  private async processRelayChainDetectionOnly(
-    item: QueueItem,
-    events: Vec<FrameSystemEventRecord>
-  ): Promise<void> {
-    Log.service({
-      service: 'Block Processor',
-      action: 'Processing Relay Chain block in detection mode',
-      details: {
-        blockNumber: item.blockNumber,
-        eventsCount: events.length,
-      },
-    });
-
-    try {
-      // Look for migration scheduling events
-      for (const record of events) {
-        const { event } = record;
-        
-        // Look for rcMigrator.StageTransition events
-			if (event.section === 'rcMigrator' && event.method === 'StageTransition') {
-          
-          const [fromState, toState] = event.data.toJSON() as [unknown, unknown];
-          
-          // Type guard for scheduled state
-          const isScheduledState = (state: unknown): state is { scheduled: { blockNumber: string } } => {
-            return !!state && typeof state === 'object' && !!(state as { scheduled?: { blockNumber?: unknown } }).scheduled?.blockNumber
-          };
-          
-          // Check if transitioning TO scheduled state
-          if (isScheduledState(toState)) {
-            const scheduledBlock = parseInt(toState.scheduled.blockNumber);
-            
-            Log.service({
-              service: 'Block Processor',
-              action: 'Migration scheduled detected! Switching to full processing mode',
-              details: { 
-                scheduledBlock,
-                currentBlock: item.blockNumber,
-                blocksUntilMigration: scheduledBlock - item.blockNumber,
-                fromState,
-                toState
-              }
-            });
-            
-            // Set migration block number internally and persist to DB
-            await this.setMigrationBlockNumber(scheduledBlock);
-            
-            // Switch to full processing mode
-            this.switchToFullMode();
-            
-            return; // Found what we're looking for!
-          }
-
-          // Also check if transitioning from scheduled to an active migration stage
-          if (isScheduledState(fromState) && !isScheduledState(toState)) {
-            Log.service({
-              service: 'Block Processor',
-              action: 'Migration started detected! Ensuring full processing mode',
-              details: { 
-                currentBlock: item.blockNumber,
-                fromState,
-                toState
-              }
-            });
-            
-            // Ensure we're in full processing mode
-            this.switchToFullMode();
-            
-            return;
-          }
-        }
-      }
-    } catch (error) {
-      Log.service({
-        service: 'Block Processor',
-        action: 'Error in detection mode processing',
-        error: error as Error,
-        details: { blockNumber: item.blockNumber },
-      });
-    }
-  }
 
   /**
    * Switch to full processing mode
@@ -1322,6 +1351,16 @@ export class BlockProcessor {
       service: 'Block Processor',
       action: 'Starting cleanup',
     });
+
+    // Cleanup subscription
+    if (this.rcMigrationStageSubscription) {
+      this.rcMigrationStageSubscription();
+      this.rcMigrationStageSubscription = null;
+      Log.service({
+        service: 'Block Processor',
+        action: 'rcMigrationStage subscription cleaned up',
+      });
+    }
 
     // Clear all queues and reset state
     this.queue.get('relay-chain')!.length = 0;
