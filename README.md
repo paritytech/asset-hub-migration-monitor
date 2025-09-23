@@ -56,7 +56,7 @@ This approach allows you to see all logs clearly in separate terminals and easil
 
 ### Quick Start
 ```bash
-# One-time setup
+# One-time setup (creates data directory, installs dependencies, sets up database)
 just setup
 
 # Then in two separate terminals:
@@ -70,6 +70,8 @@ just run-frontend
 The application will be available at:
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8080
+
+**Note:** The backend requires a `data` directory for the SQLite database. This is automatically created by the setup commands.
 
 ## Docker Support
 

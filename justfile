@@ -12,11 +12,11 @@ install:
 
 db:
     #!/usr/bin/env bash
-    cd backend && yarn migrate && yarn push && cd ..
+    cd backend && mkdir -p data && yarn migrate && yarn push && cd ..
 
 db-clean:
     #!/usr/bin/env bash
-    cd backend && rm -rf ./data/sqlite.db && yarn migrate && yarn push && cd ..
+    cd backend && rm -rf ./data/sqlite.db && mkdir -p data && yarn migrate && yarn push && cd ..
 
 # Build both frontend and backend
 build:
