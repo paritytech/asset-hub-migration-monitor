@@ -9,6 +9,7 @@ import { Log } from './logging/Log';
 import { updatesHandler } from './routes/updates';
 import { BlockProcessor } from './services/BlockProcessor';
 import { FinalizedService } from './services/finalizedService';
+import { MockFinalizedService } from './services/MockFinalizedService';
 
 const app = express();
 const port = getConfig().port;
@@ -35,10 +36,17 @@ app.use(cors());
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
   const blockProcessor = BlockProcessor.getInstance();
-  const finalizedService = FinalizedService.getInstance();
+  const testMode = process.env.TEST_MODE;
+  const useMock = testMode !== undefined && testMode !== '';
+
+  const finalizedService = useMock
+    ? MockFinalizedService.getInstance()
+    : FinalizedService.getInstance();
 
   res.json({
     status: 'ok',
+    mode: useMock ? 'mock' : 'real',
+    testMode: testMode || null,
     migrationStatus: blockProcessor.getMigrationStatus(),
     subscriptions: finalizedService.getStatus()
   });
@@ -47,9 +55,15 @@ app.get('/health', (_req: Request, res: Response) => {
 // Queue status endpoint to monitor BlockProcessor queue growth
 app.get('/api/queue-status', (_req: Request, res: Response) => {
   const blockProcessor = BlockProcessor.getInstance();
-  const finalizedService = FinalizedService.getInstance();
+  const testMode = process.env.TEST_MODE;
+  const useMock = testMode !== undefined && testMode !== '';
+
+  const finalizedService = useMock
+    ? MockFinalizedService.getInstance()
+    : FinalizedService.getInstance();
 
   res.json({
+    mode: useMock ? 'mock' : 'real',
     queues: blockProcessor.getQueueStatus(),
     subscriptions: finalizedService.getStatus(),
     timestamp: new Date().toISOString(),
@@ -61,7 +75,23 @@ app.get('/api/updates', updatesHandler);
 
 const main = async () => {
   const blockProcessor = BlockProcessor.getInstance();
-  const finalizedService = FinalizedService.getInstance();
+
+  // Choose service based on TEST_MODE environment variable
+  const testMode = process.env.TEST_MODE;
+  const useMock = testMode !== undefined && testMode !== '';
+
+  const finalizedService = useMock
+    ? MockFinalizedService.getInstance()
+    : FinalizedService.getInstance();
+
+  Log.service({
+    service: 'Application',
+    action: 'Finalized service mode',
+    details: {
+      mode: useMock ? 'MOCK' : 'REAL',
+      testMode: testMode || 'none'
+    },
+  });
 
   // Initialize BlockProcessor (includes DB state check)
   await blockProcessor.initialize();
