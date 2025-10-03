@@ -31,7 +31,6 @@ export const xcmMessageCounters = sqliteTable('xcm_message_counters', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   sourceChain: text('source_chain').notNull(),
   destinationChain: text('destination_chain').notNull(),
-  messagesSent: integer('messages_sent').notNull().default(0),
   messagesProcessed: integer('messages_processed').notNull().default(0),
   messagesFailed: integer('messages_failed').notNull().default(0),
   lastUpdated: integer('last_updated', { mode: 'timestamp' })
@@ -84,66 +83,8 @@ export const umpQueueEvents = sqliteTable('ump_queue_events', {
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Message Processing Events (from Asset Hub)
-export const messageProcessingEventsRC = sqliteTable('message_processing_events_rc', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-});
-
-// Message Processing Events (from Asset Hub)
-export const messageProcessingEventsAH = sqliteTable('message_processing_events', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-});
-
-// Upward Message Sent Events (from Asset Hub)
-export const upwardMessageSentEvents = sqliteTable('upward_message_sent_events', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-});
-
-// Queue-Processing Correlation
-export const queueProcessingCorrelation = sqliteTable('queue_processing_correlation', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  queueEventId: integer('queue_event_id')
-    .notNull()
-    .references(() => dmpQueueEvents.id),
-  processingEventId: integer('processing_event_id')
-    .notNull()
-    .references(() => messageProcessingEventsAH.id),
-  latencyMs: integer('latency_ms').notNull(), // Time between queue drain and processing
-  throughput: integer('throughput').notNull(), // Messages per second
-  throughputBytes: integer('throughput_bytes').notNull(), // Bytes per second
-  timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-});
-
-// Cached DMP Metrics for quick frontend queries
-export const dmpMetricsCache = sqliteTable('dmp_metrics_cache', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  currentQueueSize: integer('current_queue_size').notNull().default(0),
-  currentQueueSizeBytes: integer('current_queue_size_bytes').notNull().default(0),
-  averageLatencyMs: integer('average_latency_ms').notNull().default(0),
-  averageThroughput: integer('average_throughput').notNull().default(0),
-  averageThroughputBytes: integer('average_throughput_bytes').notNull().default(0),
-  lastUpdated: integer('last_updated', { mode: 'timestamp' })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
-
 export type DmpQueueEvent = typeof dmpQueueEvents.$inferSelect;
 export type NewDmpQueueEvent = typeof dmpQueueEvents.$inferInsert;
 
 export type UmpQueueEvent = typeof umpQueueEvents.$inferSelect;
 export type NewUmpQueueEvent = typeof umpQueueEvents.$inferInsert;
-
-export type MessageProcessingEventAH = typeof messageProcessingEventsAH.$inferSelect;
-export type NewMessageProcessingEvent = typeof messageProcessingEventsAH.$inferInsert;
-
-export type QueueProcessingCorrelation = typeof queueProcessingCorrelation.$inferSelect;
-export type NewQueueProcessingCorrelation = typeof queueProcessingCorrelation.$inferInsert;
-
-export type DmpMetricsCache = typeof dmpMetricsCache.$inferSelect;
-export type NewDmpMetricsCache = typeof dmpMetricsCache.$inferInsert;
-
-export type UpwardMessageSentEvent = typeof upwardMessageSentEvents.$inferSelect;
-export type NewUpwardMessageSentEvent = typeof upwardMessageSentEvents.$inferInsert;
