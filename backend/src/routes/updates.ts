@@ -4,10 +4,8 @@ import { Request, Response, RequestHandler } from 'express';
 import { db } from '../db';
 import { migrationStages, xcmMessageCounters } from '../db/schema';
 import { Log } from '../logging/Log';
-import { DmpMetricsCache } from '../services/cache/DmpMetricsCache';
 import { PalletMigrationCache } from '../services/cache/PalletMigrationCache';
 import { TimeInStageCache } from '../services/cache/TimeInStageCache';
-import { UmpMetricsCache } from '../services/cache/UmpMetricsCache';
 import { eventService } from '../services/eventService';
 import { getPalletFromStage } from '../util/stageToPalletMapping';
 
@@ -77,7 +75,6 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         sendEvent('rcXcmMessageCounter', {
           sourceChain: rcCounter.sourceChain,
           destinationChain: rcCounter.destinationChain,
-          messagesSent: rcCounter.messagesSent,
           messagesProcessed: rcCounter.messagesProcessed,
           messagesFailed: rcCounter.messagesFailed,
           lastUpdated: rcCounter.lastUpdated,
@@ -93,7 +90,6 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         sendEvent('ahXcmMessageCounter', {
           sourceChain: ahCounter.sourceChain,
           destinationChain: ahCounter.destinationChain,
-          messagesSent: ahCounter.messagesSent,
           messagesProcessed: ahCounter.messagesProcessed,
           messagesFailed: ahCounter.messagesFailed,
           lastUpdated: ahCounter.lastUpdated,
@@ -143,34 +139,6 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
           timestamp: ahStage.timestamp,
         });
       }
-    }
-
-    // Handle DMP metrics initial state
-    if (requestedEvents.includes('dmpMetrics')) {
-      const dmpMetricsCacheInstance = DmpMetricsCache.getInstance();
-      const currentMetrics = dmpMetricsCacheInstance.getMetrics();
-      sendEvent('dmpMetrics', {
-        averageLatencyMs: currentMetrics.averageLatencyMs,
-        totalSizeBytes: currentMetrics.totalSizeBytes,
-        lastUpdated: currentMetrics.lastUpdated,
-        latencyCount: currentMetrics.latencyCount,
-        sizeCount: currentMetrics.sizeCount,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Handle UMP metrics initial state
-    if (requestedEvents.includes('umpMetrics')) {
-      const umpMetricsCacheInstance = UmpMetricsCache.getInstance();
-      const currentMetrics = umpMetricsCacheInstance.getMetrics();
-      sendEvent('umpMetrics', {
-        averageLatencyMs: currentMetrics.averageLatencyMs,
-        totalSizeBytes: currentMetrics.totalSizeBytes,
-        lastUpdated: currentMetrics.lastUpdated,
-        latencyCount: currentMetrics.latencyCount,
-        sizeCount: currentMetrics.sizeCount,
-        timestamp: new Date().toISOString(),
-      });
     }
 
     // Handle pallet migration summary initial state

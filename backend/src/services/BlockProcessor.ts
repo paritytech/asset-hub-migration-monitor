@@ -6,17 +6,15 @@ import type {
   FrameSystemEventRecord,
   PolkadotCorePrimitivesInboundDownwardMessage,
 } from '@polkadot/types/lookup';
-import type { ITuple } from '@polkadot/types/types';
 
 import { eq, desc, and } from 'drizzle-orm';
 
+import { sql } from 'drizzle-orm';
+
 import { db } from '../db';
 import {
-  messageProcessingEventsRC,
   migrationStages,
   palletMigrationCounters,
-  messageProcessingEventsAH,
-  upwardMessageSentEvents,
   xcmMessageCounters,
   dmpQueueEvents,
   umpQueueEvents,
@@ -25,10 +23,8 @@ import { Log } from '../logging/Log';
 import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
 
 import { AbstractApi } from './abstractApi';
-import { DmpLatencyProcessor } from './cache/DmpLatencyProcessor';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
 import { TimeInStageCache } from './cache/TimeInStageCache';
-import { UmpLatencyProcessor } from './cache/UmpLatencyProcessor';
 import { eventService } from './eventService';
 
 // TODO: Ensure we handle migration stages correctly.
@@ -647,22 +643,39 @@ export class BlockProcessor {
 
   private async handleAssetHubMessageQueueProcessed(event: Event, item: QueueItem): Promise<void> {
     try {
-      const dmpLatencyProcessor = DmpLatencyProcessor.getInstance();
-      dmpLatencyProcessor.addMessageQueueProcessed(new Date(item.timestamp!));
+      // Simple increment - DMP messages processed on Asset Hub
+      await db.update(xcmMessageCounters)
+        .set({
+          messagesProcessed: sql`messagesProcessed + 1`,
+          lastUpdated: new Date(item.timestamp!)
+        })
+        .where(eq(xcmMessageCounters.destinationChain, 'asset-hub'));
 
-      await db.insert(messageProcessingEventsAH).values({
-        timestamp: new Date(),
+      // Get updated counter and emit
+      const counter = await db.query.xcmMessageCounters.findFirst({
+        where: (counters, { eq }) => eq(counters.destinationChain, 'asset-hub'),
       });
+
+      if (counter) {
+        eventService.emit('dmpMessageCounter', {
+          sourceChain: counter.sourceChain,
+          destinationChain: counter.destinationChain,
+          messagesProcessed: counter.messagesProcessed,
+          messagesFailed: counter.messagesFailed,
+          lastUpdated: counter.lastUpdated,
+        });
+      }
+
       Log.chainEvent({
         chain: 'asset-hub',
         eventType: 'MessageQueue.Processed',
         blockNumber: item.blockNumber,
-        details: { eventData: event.toJSON() },
+        details: { totalProcessed: counter?.messagesProcessed },
       });
     } catch (error) {
       Log.chainEvent({
         chain: 'asset-hub',
-        eventType: 'MessageQueue.Processed database error',
+        eventType: 'MessageQueue.Processed error',
         error: error as Error,
       });
     }
@@ -670,27 +683,15 @@ export class BlockProcessor {
 
   private async handleAssetHubUpwardMessageSent(event: Event, item: QueueItem): Promise<void> {
     try {
-      // Add to latency processor
-      const umpLatencyProcessor = UmpLatencyProcessor.getInstance();
-      umpLatencyProcessor.addUpwardMessageSent(new Date(item.timestamp!));
-
-      await db.insert(upwardMessageSentEvents).values({
-        timestamp: new Date(item.timestamp!),
-      });
-
-      eventService.emit('upwardMessageSent', {
-        timestamp: new Date(item.timestamp!).toISOString(),
-      });
       Log.chainEvent({
         chain: 'asset-hub',
         eventType: 'UpwardMessageSent',
         blockNumber: item.blockNumber,
-        details: { eventData: event.toJSON() },
       });
     } catch (error) {
       Log.chainEvent({
         chain: 'asset-hub',
-        eventType: 'UpwardMessageSent database error',
+        eventType: 'UpwardMessageSent error',
         error: error as Error,
       });
     }
@@ -704,24 +705,39 @@ export class BlockProcessor {
     item: QueueItem
   ): Promise<void> {
     try {
-      const umpLatencyProcessor = UmpLatencyProcessor.getInstance();
+      // Simple increment - UMP messages processed on Relay Chain
+      await db.update(xcmMessageCounters)
+        .set({
+          messagesProcessed: sql`messagesProcessed + 1`,
+          lastUpdated: new Date(item.timestamp!)
+        })
+        .where(eq(xcmMessageCounters.destinationChain, 'relay-chain'));
 
-      await db.insert(messageProcessingEventsRC).values({
-        timestamp: new Date(item.timestamp!),
+      // Get updated counter and emit
+      const counter = await db.query.xcmMessageCounters.findFirst({
+        where: (counters, { eq }) => eq(counters.destinationChain, 'relay-chain'),
       });
 
-      umpLatencyProcessor.addMessageQueueProcessed(new Date(item.timestamp!));
+      if (counter) {
+        eventService.emit('umpMessageCounter', {
+          sourceChain: counter.sourceChain,
+          destinationChain: counter.destinationChain,
+          messagesProcessed: counter.messagesProcessed,
+          messagesFailed: counter.messagesFailed,
+          lastUpdated: counter.lastUpdated,
+        });
+      }
 
       Log.chainEvent({
         chain: 'relay-chain',
         eventType: 'MessageQueue.Processed',
         blockNumber: item.blockNumber,
-        details: { eventData: event.toJSON() },
+        details: { totalProcessed: counter?.messagesProcessed },
       });
     } catch (error) {
       Log.chainEvent({
         chain: 'relay-chain',
-        eventType: 'MessageQueue.Processed database error',
+        eventType: 'MessageQueue.Processed error',
         error: error as Error,
       });
     }
@@ -830,7 +846,6 @@ export class BlockProcessor {
     dmpMessageQueue: Vec<PolkadotCorePrimitivesInboundDownwardMessage>,
     item: QueueItem
   ) {
-    const dmpLatencyProcessor = DmpLatencyProcessor.getInstance();
     try {
       const currentQueueSize = dmpMessageQueue.length;
       // Calculate exact total size in bytes by summing encoded lengths
@@ -856,11 +871,6 @@ export class BlockProcessor {
           eventType,
           timestamp,
         });
-
-        // Add fill events to latency processor
-        if (eventType === 'fill') {
-          dmpLatencyProcessor.addFillMessageSent(timestamp);
-        }
 
         // Emit event for frontend
         eventService.emit('dmpQueueEvent', {
