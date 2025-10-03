@@ -60,8 +60,7 @@ export class BlockProcessor {
     // Initialize last block numbers to 0
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
-    // CRISIS MODE: Force full processing mode immediately
-    this.currentMode = ProcessingMode.FULL;
+    this.currentMode = ProcessingMode.DETECTION;
   }
 
   /**
@@ -1000,17 +999,16 @@ export class BlockProcessor {
         
         // Look for rcMigrator.StageTransition events
 			if (event.section === 'rcMigrator' && event.method === 'StageTransition') {
-          
           const [fromState, toState] = event.data.toJSON() as [unknown, unknown];
           
           // Type guard for scheduled state
-          const isScheduledState = (state: unknown): state is { scheduled: { blockNumber: string } } => {
-            return !!state && typeof state === 'object' && !!(state as { scheduled?: { blockNumber?: unknown } }).scheduled?.blockNumber
+          const isScheduledState = (state: unknown): state is { scheduled: { start: string } } => {
+            return !!state && typeof state === 'object' && !!(state as { scheduled?: { start?: unknown } }).scheduled?.start
           };
           
           // Check if transitioning TO scheduled state
           if (isScheduledState(toState)) {
-            const scheduledBlock = parseInt(toState.scheduled.blockNumber);
+            const scheduledBlock = parseInt(toState.scheduled.start);
             
             Log.service({
               service: 'Block Processor',
@@ -1026,9 +1024,6 @@ export class BlockProcessor {
             
             // Set migration block number internally and persist to DB
             await this.setMigrationBlockNumber(scheduledBlock);
-            
-            // Switch to full processing mode
-            this.switchToFullMode();
             
             return; // Found what we're looking for!
           }
