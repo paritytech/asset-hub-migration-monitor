@@ -118,17 +118,17 @@ const MigrationStatus: React.FC = () => {
   }, []));
 
   // Subscribe to RC events (excluding rcStageUpdate)
-  useEventSource(['rcHead', 'rcXcmMessageCounter', 'umpLatency', 'umpMetrics', 'umpQueueEvent'], useCallback((_eventType: EventType, data: any) => {
+  useEventSource(['rcHead', 'umpMessageCounter', 'umpQueueEvent'], useCallback((_eventType: EventType, data: any) => {
     setRcLastUpdate(new Date()); // Reset RC timer
   }, []));
 
   // Subscribe to AH events
-  useEventSource(['ahHead', 'ahXcmMessageCounter', 'ahStageUpdate', 'dmpLatency', 'dmpQueueEvent', 'dmpMetrics'], useCallback((_eventType: EventType, data: any) => {
+  useEventSource(['ahHead', 'dmpMessageCounter', 'ahStageUpdate', 'dmpQueueEvent'], useCallback((_eventType: EventType, data: any) => {
     setAhLastUpdate(new Date()); // Reset AH timer
   }, []));
 
   // Subscribe to XCM message counters to track errors
-  useEventSource(['rcXcmMessageCounter', 'ahXcmMessageCounter'], useCallback((_eventType: EventType, data: any) => {
+  useEventSource(['dmpMessageCounter', 'umpMessageCounter'], useCallback((_eventType: EventType, data: any) => {
     if (data.messagesFailed !== undefined) {
       setXcmErrorCount(data.messagesFailed);
     }

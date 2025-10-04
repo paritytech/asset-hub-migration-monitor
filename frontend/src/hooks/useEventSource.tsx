@@ -84,7 +84,7 @@ export const EventSourceProvider: React.FC<EventSourceProviderProps> = ({
       eventSourceRef.current.close();
     }
 
-    const allEventTypes: EventType[] = ['rcHead', 'ahHead', 'rcXcmMessageCounter', 'ahXcmMessageCounter', 'rcStageUpdate', 'ahStageUpdate', 'dmpLatency', 'dmpQueueEvent', 'dmpMetrics', 'umpLatency', 'umpMetrics', 'umpQueueEvent', 'palletMigrationUpdate', 'palletMigrationSummary'];
+    const allEventTypes: EventType[] = ['rcHead', 'ahHead', 'dmpMessageCounter', 'umpMessageCounter', 'rcStageUpdate', 'ahStageUpdate', 'dmpQueueEvent', 'umpQueueEvent', 'palletMigrationUpdate', 'palletMigrationSummary'];
     const apiUrl = url ? `${url}/api/updates` : '/api/updates';
     const es = new EventSource(`${apiUrl}?events=${allEventTypes.join(',')}`);
     

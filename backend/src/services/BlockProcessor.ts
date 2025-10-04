@@ -1,6 +1,6 @@
 import type { PalletRcMigratorMigrationStage } from '../types/pjs';
 import type { ApiDecoration } from '@polkadot/api/types';
-import type { u32, Vec, Bytes } from '@polkadot/types';
+import type { Vec, Bytes } from '@polkadot/types';
 import type { Event } from '@polkadot/types/interfaces';
 import type {
   FrameSystemEventRecord,
@@ -387,7 +387,6 @@ export class BlockProcessor {
       await this.processAssetHubStorage(apiAt, item);
 
       // Process Asset Hub specific events
-      let foundMessageQueueProcessed = false;
       for (const record of events) {
         const { event } = record;
 
@@ -398,12 +397,6 @@ export class BlockProcessor {
 
         // Handle messageQueue.Processed events (DMP latency)
         if (event.section === 'messageQueue' && event.method === 'Processed') {
-          // We only need to find the first messageQueue::Processed
-          if (foundMessageQueueProcessed) {
-            continue;
-          } else {
-            foundMessageQueueProcessed = true;
-          }
           await this.handleAssetHubMessageQueueProcessed(event, item);
         }
 
@@ -569,33 +562,29 @@ export class BlockProcessor {
   private async handleAssetHubMessageQueueProcessed(event: Event, item: QueueItem): Promise<void> {
     try {
       // Simple increment - DMP messages processed on Asset Hub
-      await db.update(xcmMessageCounters)
+      const updatedDb = await db.update(xcmMessageCounters)
         .set({
           messagesProcessed: sql`messages_processed + 1`,
           lastUpdated: new Date(item.timestamp!)
         })
-        .where(eq(xcmMessageCounters.destinationChain, 'asset-hub'));
+        .where(eq(xcmMessageCounters.destinationChain, 'asset-hub')).returning();
 
-      // Get updated counter and emit
-      const counter = await db.query.xcmMessageCounters.findFirst({
-        where: (counters, { eq }) => eq(counters.destinationChain, 'asset-hub'),
-      });
-
-      if (counter) {
-        eventService.emit('dmpMessageCounter', {
-          sourceChain: counter.sourceChain,
-          destinationChain: counter.destinationChain,
-          messagesProcessed: counter.messagesProcessed,
-          messagesFailed: counter.messagesFailed,
-          lastUpdated: counter.lastUpdated,
-        });
+      if (updatedDb[0]) {
+        const eventData = {
+          sourceChain: updatedDb[0].sourceChain,
+          destinationChain: updatedDb[0].destinationChain,
+          messagesProcessed: updatedDb[0].messagesProcessed,
+          messagesFailed: updatedDb[0].messagesFailed,
+          lastUpdated: updatedDb[0].lastUpdated,
+        };
+        eventService.emit('dmpMessageCounter', eventData);
       }
 
       Log.chainEvent({
         chain: 'asset-hub',
         eventType: 'MessageQueue.Processed',
         blockNumber: item.blockNumber,
-        details: { totalProcessed: counter?.messagesProcessed },
+        details: { totalProcessed: updatedDb[0]?.messagesProcessed },
       });
     } catch (error) {
       Log.chainEvent({
@@ -631,33 +620,29 @@ export class BlockProcessor {
   ): Promise<void> {
     try {
       // Simple increment - UMP messages processed on Relay Chain
-      await db.update(xcmMessageCounters)
+      const updatedDb = await db.update(xcmMessageCounters)
         .set({
           messagesProcessed: sql`messages_processed + 1`,
           lastUpdated: new Date(item.timestamp!)
         })
-        .where(eq(xcmMessageCounters.destinationChain, 'relay-chain'));
+        .where(eq(xcmMessageCounters.destinationChain, 'relay-chain')).returning();
 
-      // Get updated counter and emit
-      const counter = await db.query.xcmMessageCounters.findFirst({
-        where: (counters, { eq }) => eq(counters.destinationChain, 'relay-chain'),
-      });
-
-      if (counter) {
-        eventService.emit('umpMessageCounter', {
-          sourceChain: counter.sourceChain,
-          destinationChain: counter.destinationChain,
-          messagesProcessed: counter.messagesProcessed,
-          messagesFailed: counter.messagesFailed,
-          lastUpdated: counter.lastUpdated,
-        });
+      if (updatedDb[0]) {
+        const eventData = {
+          sourceChain: updatedDb[0].sourceChain,
+          destinationChain: updatedDb[0].destinationChain,
+          messagesProcessed: updatedDb[0].messagesProcessed,
+          messagesFailed: updatedDb[0].messagesFailed,
+          lastUpdated: updatedDb[0].lastUpdated,
+        };
+        eventService.emit('umpMessageCounter', eventData);
       }
 
       Log.chainEvent({
         chain: 'relay-chain',
         eventType: 'MessageQueue.Processed',
         blockNumber: item.blockNumber,
-        details: { totalProcessed: counter?.messagesProcessed },
+        details: { totalProcessed: updatedDb[0]?.messagesProcessed },
       });
     } catch (error) {
       Log.chainEvent({
@@ -845,13 +830,13 @@ export class BlockProcessor {
           chain: 'relay-chain',
           details: JSON.stringify(migrationStage.toJSON()),
           scheduledBlockNumber: migrationStage.isScheduled
-            ? migrationStage.asScheduled.blockNumber.toNumber()
+            ? migrationStage.asScheduled.start.toNumber()
             : undefined,
         });
       }
 
       if (migrationStage.isScheduled) {
-        await this.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
+        await this.setMigrationBlockNumber(migrationStage.asScheduled.start.toNumber());
       }
 
       // Check if we need to switch to full processing based on current stage
@@ -875,7 +860,7 @@ export class BlockProcessor {
         timestamp: new Date(item.timestamp!).toISOString(),
         palletName: palletName || null,
         scheduledBlockNumber: migrationStage.isScheduled
-          ? migrationStage.asScheduled.blockNumber.toNumber()
+          ? migrationStage.asScheduled.start.toNumber()
           : null,
         palletInitStartedAt: palletInfo?.initStartedAt || null,
         timeInPallet: palletInfo?.timeInPallet || null,
@@ -895,7 +880,7 @@ export class BlockProcessor {
           timeInPallet: palletInfo?.timeInPallet || null,
           isPalletCompleted: palletInfo?.isCompleted || false,
           scheduledBlockNumber: migrationStage.isScheduled
-            ? migrationStage.asScheduled.blockNumber.toNumber()
+            ? migrationStage.asScheduled.start.toNumber()
             : null,
         },
       });
