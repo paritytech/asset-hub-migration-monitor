@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 
-export type EventType = 'rcHead' | 'ahHead' | 'rcXcmMessageCounter' | 'ahXcmMessageCounter' | 'rcStageUpdate' | 'ahStageUpdate' | 'dmpLatency' | 'dmpQueueEvent' | 'dmpMetrics' | 'umpLatency' | 'umpMetrics' | 'umpQueueEvent' | 'palletMigrationUpdate' | 'palletMigrationSummary';
+export type EventType = 'rcHead' | 'ahHead' | 'rcXcmMessageCounter' | 'ahXcmMessageCounter' | 'rcStageUpdate' | 'ahStageUpdate' | 'dmpLatency' | 'dmpQueueEvent' | 'dmpMetrics' | 'umpLatency' | 'umpMetrics' | 'umpQueueEvent' | 'palletMigrationUpdate' | 'palletMigrationSummary' | 'rcBalanceMigration' | 'ahBalancesBefore' | 'accountMigration' | 'dmpMessageCounter' | 'umpMessageCounter';
 
 interface EventSourceContextType {
   subscribe: (events: EventType[], callback: (eventType: EventType, data: any) => void) => () => void;

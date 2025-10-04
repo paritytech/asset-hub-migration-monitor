@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import MigrationStatus from './components/MigrationStatus';
 import PerPalletMigrationStatus from './components/PerPalletMigrationStatus';
 import XcmMessageMetrics from './components/XcmMessageMetrics';
+import BalanceVerification from './components/BalanceVerification';
 import BackendUrlInput from './components/BackendUrlInput';
 import { useEventSource, useBackendUrl } from './hooks/useEventSource';
 import type { EventType } from './hooks/useEventSource';
@@ -62,6 +63,7 @@ function App() {
         <MigrationStatus />
         <PerPalletMigrationStatus />
         <XcmMessageMetrics />
+        <BalanceVerification />
       </main>
       <footer className="app-footer">
         <div className="footer-content">
