@@ -1,5 +1,8 @@
-// Mapping from migration stages to pallet names
+// Mapping from migration stages to pallet names (updated for Kusama)
 export const STAGE_TO_PALLET_MAP: Record<string, string> = {
+  // Pure Proxy Candidates
+  PureProxyCandidatesMigrationInit: 'PureProxyCandidates',
+
   // Account-related stages
   AccountsMigrationInit: 'Accounts',
   AccountsMigrationOngoing: 'Accounts',
@@ -11,11 +14,12 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   MultisigMigrationDone: 'Multisig',
 
   // Claims stages
+  ClaimsMigrationInit: 'Claims',
+  ClaimsMigrationOngoing: 'Claims',
   ClaimsMigrationDone: 'Claims',
 
   // Proxy stages
   ProxyMigrationInit: 'Proxy',
-  ProxyMigrationOngoing: 'Proxy',
   ProxyMigrationProxies: 'Proxy',
   ProxyMigrationAnnouncements: 'Proxy',
   ProxyMigrationDone: 'Proxy',
@@ -41,10 +45,10 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   VestingMigrationOngoing: 'Vesting',
   VestingMigrationDone: 'Vesting',
 
-  // Fast Unstake stages
-  FastUnstakeMigrationInit: 'FastUnstake',
-  FastUnstakeMigrationOngoing: 'FastUnstake',
-  FastUnstakeMigrationDone: 'FastUnstake',
+  // Delegated Staking stages
+  DelegatedStakingMigrationInit: 'DelegatedStaking',
+  DelegatedStakingMigrationOngoing: 'DelegatedStaking',
+  DelegatedStakingMigrationDone: 'DelegatedStaking',
 
   // Indices stages
   IndicesMigrationInit: 'Indices',
@@ -73,7 +77,14 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   ConvictionVotingMigrationDone: 'ConvictionVoting',
 
   // Bounties stages
+  BountiesMigrationInit: 'Bounties',
+  BountiesMigrationOngoing: 'Bounties',
   BountiesMigrationDone: 'Bounties',
+
+  // Child Bounties stages
+  ChildBountiesMigrationInit: 'ChildBounties',
+  ChildBountiesMigrationOngoing: 'ChildBounties',
+  ChildBountiesMigrationDone: 'ChildBounties',
 
   // Asset Rate stages
   AssetRateMigrationInit: 'AssetRate',
@@ -81,10 +92,24 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   AssetRateMigrationDone: 'AssetRate',
 
   // Crowdloan stages
+  CrowdloanMigrationInit: 'Crowdloan',
+  CrowdloanMigrationOngoing: 'Crowdloan',
   CrowdloanMigrationDone: 'Crowdloan',
 
   // Treasury stages
+  TreasuryMigrationInit: 'Treasury',
+  TreasuryMigrationOngoing: 'Treasury',
   TreasuryMigrationDone: 'Treasury',
+
+  // Recovery stages
+  RecoveryMigrationInit: 'Recovery',
+  RecoveryMigrationOngoing: 'Recovery',
+  RecoveryMigrationDone: 'Recovery',
+
+  // Society stages
+  SocietyMigrationInit: 'Society',
+  SocietyMigrationOngoing: 'Society',
+  SocietyMigrationDone: 'Society',
 
   // Staking stages
   StakingMigrationInit: 'Staking',
@@ -92,15 +117,14 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   StakingMigrationDone: 'Staking',
 };
 
-// Reverse mapping from pallet names to stage names
+// Reverse mapping from pallet names to stage names (updated for Kusama)
 export const PALLET_TO_STAGE_MAP: Record<string, string[]> = {
-  Balances: ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
+  PureProxyCandidates: ['PureProxyCandidatesMigrationInit'],
   Accounts: ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
   Multisig: ['MultisigMigrationInit', 'MultisigMigrationOngoing', 'MultisigMigrationDone'],
-  Claims: ['ClaimsMigrationDone'],
+  Claims: ['ClaimsMigrationInit', 'ClaimsMigrationOngoing', 'ClaimsMigrationDone'],
   Proxy: [
     'ProxyMigrationInit',
-    'ProxyMigrationOngoing',
     'ProxyMigrationProxies',
     'ProxyMigrationAnnouncements',
     'ProxyMigrationDone',
@@ -118,10 +142,10 @@ export const PALLET_TO_STAGE_MAP: Record<string, string[]> = {
   ],
   NomPools: ['NomPoolsMigrationInit', 'NomPoolsMigrationOngoing', 'NomPoolsMigrationDone'],
   Vesting: ['VestingMigrationInit', 'VestingMigrationOngoing', 'VestingMigrationDone'],
-  FastUnstake: [
-    'FastUnstakeMigrationInit',
-    'FastUnstakeMigrationOngoing',
-    'FastUnstakeMigrationDone',
+  DelegatedStaking: [
+    'DelegatedStakingMigrationInit',
+    'DelegatedStakingMigrationOngoing',
+    'DelegatedStakingMigrationDone',
   ],
   Indices: ['IndicesMigrationInit', 'IndicesMigrationOngoing', 'IndicesMigrationDone'],
   Referenda: ['ReferendaMigrationInit', 'ReferendaMigrationOngoing', 'ReferendaMigrationDone'],
@@ -137,10 +161,17 @@ export const PALLET_TO_STAGE_MAP: Record<string, string[]> = {
     'ConvictionVotingMigrationOngoing',
     'ConvictionVotingMigrationDone',
   ],
-  Bounties: ['BountiesMigrationDone'],
+  Bounties: ['BountiesMigrationInit', 'BountiesMigrationOngoing', 'BountiesMigrationDone'],
+  ChildBounties: [
+    'ChildBountiesMigrationInit',
+    'ChildBountiesMigrationOngoing',
+    'ChildBountiesMigrationDone',
+  ],
   AssetRate: ['AssetRateMigrationInit', 'AssetRateMigrationOngoing', 'AssetRateMigrationDone'],
-  Crowdloan: ['CrowdloanMigrationDone'],
-  Treasury: ['TreasuryMigrationDone'],
+  Crowdloan: ['CrowdloanMigrationInit', 'CrowdloanMigrationOngoing', 'CrowdloanMigrationDone'],
+  Treasury: ['TreasuryMigrationInit', 'TreasuryMigrationOngoing', 'TreasuryMigrationDone'],
+  Recovery: ['RecoveryMigrationInit', 'RecoveryMigrationOngoing', 'RecoveryMigrationDone'],
+  Society: ['SocietyMigrationInit', 'SocietyMigrationOngoing', 'SocietyMigrationDone'],
   Staking: ['StakingMigrationInit', 'StakingMigrationOngoing', 'StakingMigrationDone'],
 };
 
