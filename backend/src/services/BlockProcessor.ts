@@ -122,80 +122,6 @@ export class BlockProcessor {
         details: { blockNumber: this.migrationStartBlockNumber }
       });
     }
-
-    // Check live on-chain state if rcMigrator pallet exists
-    try {
-      const api = await AbstractApi.getInstance().getRelayChainApi();
-      
-      // Check if rcMigrator pallet exists
-      if (api.query.rcMigrator) {
-        const finalizedHead = await api.rpc.chain.getFinalizedHead();
-        const apiAt = await api.at(finalizedHead);
-        const currentOnChainStage = await apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>();
-        const stageType = currentOnChainStage.type;
-        
-        Log.service({
-          service: 'Block Processor',
-          action: 'Found rcMigrator pallet, checking current on-chain stage',
-          details: { stage: stageType }
-        });
-        
-        // Check if this is a new stage we haven't seen
-        const existingStage = await db.query.migrationStages.findFirst({
-          where: and(
-            eq(migrationStages.chain, 'relay-chain'),
-            eq(migrationStages.stage, stageType)
-          ),
-          orderBy: desc(migrationStages.timestamp),
-        });
-        
-        // If we haven't seen this stage recently, record it
-        if (!existingStage) {
-          console.log(currentOnChainStage.asScheduled.toJSON())
-          await db.insert(migrationStages).values({
-            stage: stageType,
-            chain: 'relay-chain',
-            details: JSON.stringify(currentOnChainStage.toJSON()),
-            scheduledBlockNumber: currentOnChainStage.isScheduled
-              ? 7926930
-              : undefined,
-          });
-          
-          Log.service({
-            service: 'Block Processor',
-            action: 'Recorded current on-chain migration stage to database',
-            details: { stage: stageType }
-          });
-        }
-        
-        // Switch to full mode if migration is active
-        if (this.isMigrationActive(stageType)) {
-          this.switchToFullMode();
-          Log.service({
-            service: 'Block Processor',
-            action: 'Active migration detected on-chain during initialization',
-            details: { stage: stageType }
-          });
-        }
-        
-        // Set migration block number if scheduled
-        if (currentOnChainStage.isScheduled) {
-          this.migrationStartBlockNumber = currentOnChainStage.asScheduled.blockNumber.toNumber();
-        }
-      } else {
-        Log.service({
-          service: 'Block Processor',
-          action: 'rcMigrator pallet not found, staying in detection mode'
-        });
-      }
-    } catch (error) {
-      Log.service({
-        service: 'Block Processor',
-        action: 'Error checking on-chain migration state during initialization',
-        error: error as Error
-      });
-      // Continue with existing logic - don't fail initialization
-    }
   }
 
   public static getInstance(): BlockProcessor {
@@ -645,7 +571,7 @@ export class BlockProcessor {
       // Simple increment - DMP messages processed on Asset Hub
       await db.update(xcmMessageCounters)
         .set({
-          messagesProcessed: sql`messagesProcessed + 1`,
+          messagesProcessed: sql`messages_processed + 1`,
           lastUpdated: new Date(item.timestamp!)
         })
         .where(eq(xcmMessageCounters.destinationChain, 'asset-hub'));
@@ -707,7 +633,7 @@ export class BlockProcessor {
       // Simple increment - UMP messages processed on Relay Chain
       await db.update(xcmMessageCounters)
         .set({
-          messagesProcessed: sql`messagesProcessed + 1`,
+          messagesProcessed: sql`messages_processed + 1`,
           lastUpdated: new Date(item.timestamp!)
         })
         .where(eq(xcmMessageCounters.destinationChain, 'relay-chain'));
@@ -909,14 +835,20 @@ export class BlockProcessor {
     try {
       const currentStage = migrationStage.type;
 
-      await db.insert(migrationStages).values({
-        stage: currentStage,
-        chain: 'relay-chain',
-        details: JSON.stringify(migrationStage.toJSON()),
-        scheduledBlockNumber: migrationStage.isScheduled
-          ? migrationStage.asScheduled.blockNumber.toNumber()
-          : undefined,
-      });
+      // Check if this is a new stage before inserting
+      const isNewStage = await timeInStageCache.recordStageStart(currentStage);
+
+      // Only insert to database if this is a new stage
+      if (isNewStage) {
+        await db.insert(migrationStages).values({
+          stage: currentStage,
+          chain: 'relay-chain',
+          details: JSON.stringify(migrationStage.toJSON()),
+          scheduledBlockNumber: migrationStage.isScheduled
+            ? migrationStage.asScheduled.blockNumber.toNumber()
+            : undefined,
+        });
+      }
 
       if (migrationStage.isScheduled) {
         await this.setMigrationBlockNumber(migrationStage.asScheduled.blockNumber.toNumber());
@@ -925,17 +857,17 @@ export class BlockProcessor {
       // Check if we need to switch to full processing based on current stage
       if (this.isMigrationActive(currentStage)) {
         Log.service({
-          service: 'Block Processor', 
+          service: 'Block Processor',
           action: 'Active migration detected in finalized block, switching to full mode',
           details: { stage: currentStage, blockNumber: item.blockNumber }
         });
         this.switchToFullMode();
       }
 
-      const isNewStage = await timeInStageCache.recordStageStart(currentStage);
       const palletName = getPalletFromStage(currentStage);
       const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
+      // Emit event on every block to update timeInPallet
       eventService.emit('rcStageUpdate', {
         stage: currentStage,
         chain: 'relay-chain',
@@ -1000,12 +932,59 @@ export class BlockProcessor {
         // Look for rcMigrator.StageTransition events
 			if (event.section === 'rcMigrator' && event.method === 'StageTransition') {
           const [fromState, toState] = event.data.toJSON() as [unknown, unknown];
-          
+
+          // Extract stage name from toState
+          const stageName = this.getStageNameFromState(toState);
+
           // Type guard for scheduled state
           const isScheduledState = (state: unknown): state is { scheduled: { start: string } } => {
             return !!state && typeof state === 'object' && !!(state as { scheduled?: { start?: unknown } }).scheduled?.start
           };
-          
+
+          // Extract scheduled block number if this is a scheduled state
+          const scheduledBlockNumber = isScheduledState(toState)
+            ? parseInt(toState.scheduled.start)
+            : null;
+
+          // Emit stage update event
+          eventService.emit('rcStageUpdate', {
+            stage: stageName,
+            chain: 'relay-chain',
+            details: toState,
+            timestamp: new Date(item.timestamp!).toISOString(),
+            palletName: getPalletFromStage(stageName),
+            scheduledBlockNumber,
+            palletInitStartedAt: null,
+            timeInPallet: null,
+            isNewStage: true,
+            isPalletCompleted: false,
+            palletTotalDuration: null,
+            currentPalletStage: null,
+          });
+
+          Log.service({
+            service: 'Block Processor',
+            action: 'Stage transition detected - emitting rcStageUpdate',
+            details: {
+              stage: stageName,
+              fromState,
+              toState
+            }
+          });
+
+          // Track in time cache and save to database if new stage
+          const timeInStageCache = TimeInStageCache.getInstance();
+          const isNewStage = await timeInStageCache.recordStageStart(stageName);
+
+          if (isNewStage) {
+            await db.insert(migrationStages).values({
+              stage: stageName,
+              chain: 'relay-chain',
+              details: JSON.stringify(toState),
+              scheduledBlockNumber: scheduledBlockNumber,
+            });
+          }
+
           // Check if transitioning TO scheduled state
           if (isScheduledState(toState)) {
             const scheduledBlock = parseInt(toState.scheduled.start);
@@ -1055,6 +1034,25 @@ export class BlockProcessor {
         details: { blockNumber: item.blockNumber },
       });
     }
+  }
+
+  /**
+   * Extract stage name from state object
+   */
+  private getStageNameFromState(state: unknown): string {
+    if (!state || typeof state !== 'object') {
+      return 'Unknown';
+    }
+
+    // State is an object with a single key representing the stage type
+    const keys = Object.keys(state);
+    if (keys.length === 0) {
+      return 'Unknown';
+    }
+
+    // Convert first key to proper case format
+    const key = keys[0];
+    return key.charAt(0).toUpperCase() + key.slice(1);
   }
 
   /**

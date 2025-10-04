@@ -6,6 +6,7 @@
     "build": "rimraf ./build && tsc",
     "start": "node build/main.js",
     "dev": "ts-node-dev --respawn src/main.ts",
+    "dev:clean": "rimraf ./data/sqlite.db && yarn migrate && yarn push && ts-node-dev --respawn src/main.ts",
     "migrate": "drizzle-kit generate:sqlite",
     "push": "drizzle-kit push:sqlite",
     "build:scripts": "rimraf ./build-scripts && tsc -p tsconfig.scripts.json",
