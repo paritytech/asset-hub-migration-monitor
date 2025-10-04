@@ -27,6 +27,7 @@ const XcmMessageMetrics: React.FC = () => {
   // Subscribe to DMP message counter events (Relay → Asset Hub)
   useEventSource(['dmpMessageCounter'], useCallback((eventType: EventType, data: XcmCounter) => {
     if (eventType === 'dmpMessageCounter') {
+      console.log('Received dmpMessageCounter:', data);
       setDmpCounter(data);
     }
   }, []));
@@ -34,6 +35,7 @@ const XcmMessageMetrics: React.FC = () => {
   // Subscribe to UMP message counter events (Asset Hub → Relay)
   useEventSource(['umpMessageCounter'], useCallback((eventType: EventType, data: XcmCounter) => {
     if (eventType === 'umpMessageCounter') {
+      console.log('Received umpMessageCounter:', data);
       setUmpCounter(data);
     }
   }, []));
