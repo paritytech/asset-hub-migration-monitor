@@ -22,7 +22,11 @@ type EventType =
   | 'dmpMetrics'
   | 'umpMetrics'
   | 'palletMigrationUpdate'
-  | 'palletMigrationSummary';
+  | 'palletMigrationSummary'
+  | 'dmpMessageCounter'
+  | 'umpMessageCounter'
+  | 'dmpQueueEvent'
+  | 'umpQueueEvent';
 
 export const updatesHandler: RequestHandler = async (req: Request, res: Response) => {
   const requestedEvents = ((req.query.events as string) || '')
@@ -93,6 +97,38 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
           messagesProcessed: ahCounter.messagesProcessed,
           messagesFailed: ahCounter.messagesFailed,
           lastUpdated: ahCounter.lastUpdated,
+        });
+      }
+    }
+
+    // Handle DMP message counter initial state
+    if (requestedEvents.includes('dmpMessageCounter')) {
+      const dmpCounter = await db.query.xcmMessageCounters.findFirst({
+        where: eq(xcmMessageCounters.destinationChain, 'asset-hub'),
+      });
+      if (dmpCounter) {
+        sendEvent('dmpMessageCounter', {
+          sourceChain: dmpCounter.sourceChain,
+          destinationChain: dmpCounter.destinationChain,
+          messagesProcessed: dmpCounter.messagesProcessed,
+          messagesFailed: dmpCounter.messagesFailed,
+          lastUpdated: dmpCounter.lastUpdated,
+        });
+      }
+    }
+
+    // Handle UMP message counter initial state
+    if (requestedEvents.includes('umpMessageCounter')) {
+      const umpCounter = await db.query.xcmMessageCounters.findFirst({
+        where: eq(xcmMessageCounters.destinationChain, 'relay-chain'),
+      });
+      if (umpCounter) {
+        sendEvent('umpMessageCounter', {
+          sourceChain: umpCounter.sourceChain,
+          destinationChain: umpCounter.destinationChain,
+          messagesProcessed: umpCounter.messagesProcessed,
+          messagesFailed: umpCounter.messagesFailed,
+          lastUpdated: umpCounter.lastUpdated,
         });
       }
     }

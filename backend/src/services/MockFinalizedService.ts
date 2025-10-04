@@ -18,8 +18,8 @@ export class MockFinalizedService {
   private ahIntervalId: NodeJS.Timeout | null = null;
   private rcCurrentBlock: number = 0;
   private ahCurrentBlock: number = 0;
-  private readonly rcBlockInterval: number = 6000; // 6 seconds per block (Relay Chain)
-  private readonly ahBlockInterval: number = 12000; // 12 seconds per block (Asset Hub)
+  private readonly rcBlockInterval: number = 2000; // 6 seconds per block (Relay Chain)
+  private readonly ahBlockInterval: number = 4000; // 12 seconds per block (Asset Hub)
 
   private constructor() {
     this.blockProcessor = BlockProcessor.getInstance();
