@@ -1,5 +1,6 @@
-// Migration pallets in order
+// Migration pallets in order (updated for Kusama)
 export const MIGRATION_PALLETS = [
+  'PureProxyCandidates',
   'Accounts',
   'Multisig',
   'Claims',
@@ -7,15 +8,18 @@ export const MIGRATION_PALLETS = [
   'Preimage',
   'NomPools',
   'Vesting',
-  'FastUnstake',
+  'DelegatedStaking',
   'Indices',
   'Referenda',
   'BagsList',
   'Scheduler',
   'ConvictionVoting',
   'Bounties',
+  'ChildBounties',
   'AssetRate',
   'Crowdloan',
   'Treasury',
+  'Recovery',
+  'Society',
   'Staking'
 ]; 
