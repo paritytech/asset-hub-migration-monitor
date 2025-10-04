@@ -79,7 +79,7 @@ const XcmMessageMetrics: React.FC = () => {
 
           <div className="xcm-metrics-grid">
             <div className="xcm-metric">
-              <div className="xcm-metric-label">Processed</div>
+              <div className="xcm-metric-label">Processed on AH</div>
               <div className="xcm-metric-value">
                 {dmpCounter?.messagesProcessed.toLocaleString() || 0}
               </div>
@@ -119,7 +119,7 @@ const XcmMessageMetrics: React.FC = () => {
 
           <div className="xcm-metrics-grid">
             <div className="xcm-metric">
-              <div className="xcm-metric-label">Processed</div>
+              <div className="xcm-metric-label">Processed on RC</div>
               <div className="xcm-metric-value">
                 {umpCounter?.messagesProcessed.toLocaleString() || 0}
               </div>

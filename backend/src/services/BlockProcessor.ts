@@ -31,7 +31,8 @@ import { eventService } from './eventService';
 
 enum ProcessingMode {
   DETECTION = 'detection',    // Looking for migration events
-  FULL = 'full'              // Full migration monitoring
+  FULL = 'full',              // Full migration monitoring
+  COMPLETED = 'completed'     // Migration complete - no processing
 }
 
 interface QueueItem {
@@ -102,8 +103,17 @@ export class BlockProcessor {
     });
 
     if (latestMigrationStage) {
-      const isActiveStage = this.isMigrationActive(latestMigrationStage.stage);
-      if (isActiveStage) {
+      // Check if migration is completed
+      if (this.isMigrationCompleted(latestMigrationStage.stage)) {
+        this.switchToCompletedMode();
+        Log.service({
+          service: 'Block Processor',
+          action: '🎉 Migration already completed (loaded from database)',
+          details: { stage: latestMigrationStage.stage }
+        });
+      }
+      // Check if migration is active
+      else if (this.isMigrationActive(latestMigrationStage.stage)) {
         // Migration is active, switch to full mode
         this.switchToFullMode();
         Log.service({
@@ -266,6 +276,22 @@ export class BlockProcessor {
   }
 
   private async processBlock(item: QueueItem): Promise<void> {
+    // Process based on current mode
+    if (this.currentMode === ProcessingMode.COMPLETED) {
+      // Migration completed - skip all processing
+      Log.service({
+        service: 'Block Processor',
+        action: 'Skipping block - migration completed',
+        details: {
+          chain: item.chain,
+          blockNumber: item.blockNumber,
+          timestamp: item.timestamp ? new Date(item.timestamp).toISOString(): null,
+          message: 'All processing stopped. Only FinalizedService is tracking blocks.'
+        }
+      });
+      return;
+    }
+
     Log.service({
       service: 'Block Processor',
       action: 'Processing block',
@@ -310,7 +336,6 @@ export class BlockProcessor {
         },
       });
 
-      // Process based on current mode
       if (this.currentMode === ProcessingMode.DETECTION) {
         // Detection mode: only process relay chain for migration events
         if (item.chain === 'relay-chain') {
@@ -320,7 +345,7 @@ export class BlockProcessor {
           Log.service({
             service: 'Block Processor',
             action: 'Skipping Asset Hub block in detection mode',
-            details: { 
+            details: {
               blockNumber: item.blockNumber,
               timestamp: new Date(item.timestamp!).toISOString()
             }
@@ -329,7 +354,7 @@ export class BlockProcessor {
       } else if (this.currentMode === ProcessingMode.FULL) {
         // Full mode: use existing shouldProcessBlock logic for efficiency
         const shouldProcess = this.shouldProcessBlock(item.blockNumber, item.chain);
-        
+
         if (shouldProcess) {
           // Full processing: events, storage queries, database writes
           if (item.chain === 'asset-hub') {
@@ -342,8 +367,8 @@ export class BlockProcessor {
           Log.service({
             service: 'Block Processor',
             action: 'Skipping full processing - not near migration',
-            details: { 
-              blockNumber: item.blockNumber, 
+            details: {
+              blockNumber: item.blockNumber,
               chain: item.chain,
               timestamp: new Date(item.timestamp!).toISOString()
             }
@@ -839,8 +864,17 @@ export class BlockProcessor {
         await this.setMigrationBlockNumber(migrationStage.asScheduled.start.toNumber());
       }
 
+      // Check if migration is completed
+      if (this.isMigrationCompleted(currentStage)) {
+        Log.service({
+          service: 'Block Processor',
+          action: '🎉 MigrationDone stage detected - switching to completed mode',
+          details: { stage: currentStage, blockNumber: item.blockNumber }
+        });
+        this.switchToCompletedMode();
+      }
       // Check if we need to switch to full processing based on current stage
-      if (this.isMigrationActive(currentStage)) {
+      else if (this.isMigrationActive(currentStage)) {
         Log.service({
           service: 'Block Processor',
           action: 'Active migration detected in finalized block, switching to full mode',
@@ -1049,7 +1083,7 @@ export class BlockProcessor {
     }
 
     this.currentMode = ProcessingMode.FULL;
-    
+
     Log.service({
       service: 'Block Processor',
       action: 'Switched to full processing mode',
@@ -1068,11 +1102,38 @@ export class BlockProcessor {
     }
 
     this.currentMode = ProcessingMode.DETECTION;
-    
+
     Log.service({
       service: 'Block Processor',
       action: 'Switched to detection mode',
       details: { previousMode: ProcessingMode.FULL }
+    });
+  }
+
+  /**
+   * Switch to completed mode (migration is done - stop all processing)
+   */
+  private switchToCompletedMode(): void {
+    if (this.currentMode === ProcessingMode.COMPLETED) {
+      return; // Already in completed mode
+    }
+
+    const previousMode = this.currentMode;
+    this.currentMode = ProcessingMode.COMPLETED;
+
+    Log.service({
+      service: 'Block Processor',
+      action: '🎉 Migration COMPLETED - All processing stopped',
+      details: {
+        previousMode,
+        message: 'Only FinalizedService will continue tracking block numbers'
+      }
+    });
+
+    // Emit a special event for the frontend
+    eventService.emit('migrationCompleted', {
+      timestamp: new Date().toISOString(),
+      message: 'Migration has completed successfully. Monitoring has stopped.',
     });
   }
 
@@ -1087,8 +1148,15 @@ export class BlockProcessor {
    * Check if a migration stage indicates active migration
    */
   private isMigrationActive(stage: string): boolean {
-    const inactiveStages = ['NotStarted', 'Scheduled', 'Complete', 'Pending'];
+    const inactiveStages = ['NotStarted', 'Scheduled', 'Complete', 'Pending', 'MigrationDone'];
     return !inactiveStages.includes(stage);
+  }
+
+  /**
+   * Check if migration is completed
+   */
+  private isMigrationCompleted(stage: string): boolean {
+    return stage === 'MigrationDone';
   }
 
   /**
