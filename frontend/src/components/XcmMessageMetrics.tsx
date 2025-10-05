@@ -18,11 +18,18 @@ interface QueueEvent {
   timestamp: string;
 }
 
+interface PriorityConfig {
+  type: string;
+  timestamp: string;
+}
+
 const XcmMessageMetrics: React.FC = () => {
   const [dmpCounter, setDmpCounter] = useState<XcmCounter | null>(null);
   const [umpCounter, setUmpCounter] = useState<XcmCounter | null>(null);
   const [dmpQueueEvent, setDmpQueueEvent] = useState<QueueEvent | null>(null);
   const [umpQueueEvent, setUmpQueueEvent] = useState<QueueEvent | null>(null);
+  const [dmpPriority, setDmpPriority] = useState<PriorityConfig | null>(null);
+  const [umpPriority, setUmpPriority] = useState<PriorityConfig | null>(null);
 
   // Subscribe to DMP message counter events (Relay → Asset Hub)
   useEventSource(['dmpMessageCounter'], useCallback((eventType: EventType, data: XcmCounter) => {
@@ -52,6 +59,20 @@ const XcmMessageMetrics: React.FC = () => {
     }
   }, []));
 
+  // Subscribe to DMP queue priority events
+  useEventSource(['dmpQueuePriority'], useCallback((eventType: EventType, data: PriorityConfig) => {
+    if (eventType === 'dmpQueuePriority') {
+      setDmpPriority(data);
+    }
+  }, []));
+
+  // Subscribe to UMP queue priority events
+  useEventSource(['umpQueuePriority'], useCallback((eventType: EventType, data: PriorityConfig) => {
+    if (eventType === 'umpQueuePriority') {
+      setUmpPriority(data);
+    }
+  }, []));
+
   // Format bytes for display
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return '0 KB';
@@ -65,6 +86,27 @@ const XcmMessageMetrics: React.FC = () => {
     if (size === 1) return '1 message';
     return `${size.toLocaleString()} messages`;
   };
+
+  // Format priority display
+  const formatPriority = (config: PriorityConfig | null) => {
+    if (!config) {
+      return { text: 'Loading...', className: 'priority-unknown' };
+    }
+
+    switch (config.type) {
+      case 'Config':
+        return { text: 'Default Config', className: 'priority-default' };
+      case 'OverrideConfig':
+        return { text: 'Override', className: 'priority-override' };
+      case 'Disabled':
+        return { text: 'Disabled', className: 'priority-disabled' };
+      default:
+        return { text: config.type, className: 'priority-unknown' };
+    }
+  };
+
+  const dmpPriorityDisplay = formatPriority(dmpPriority);
+  const umpPriorityDisplay = formatPriority(umpPriority);
 
   return (
     <section className="card xcm-metrics">
@@ -105,7 +147,9 @@ const XcmMessageMetrics: React.FC = () => {
             <div className="xcm-metric">
               <div className="xcm-metric-label">Priority</div>
               <div className="xcm-metric-value xcm-metric-priority">
-                <span className="priority-badge priority-enabled">Enabled ✓</span>
+                <span className={`priority-badge ${dmpPriorityDisplay.className}`}>
+                  {dmpPriorityDisplay.text}
+                </span>
               </div>
             </div>
           </div>
@@ -145,7 +189,9 @@ const XcmMessageMetrics: React.FC = () => {
             <div className="xcm-metric">
               <div className="xcm-metric-label">Priority</div>
               <div className="xcm-metric-value xcm-metric-priority">
-                <span className="priority-badge priority-enabled">Enabled ✓</span>
+                <span className={`priority-badge ${umpPriorityDisplay.className}`}>
+                  {umpPriorityDisplay.text}
+                </span>
               </div>
             </div>
           </div>

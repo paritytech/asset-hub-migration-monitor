@@ -1,4 +1,4 @@
-import type { PalletRcMigratorMigrationStage } from '../types/pjs';
+import type { PalletRcMigratorMigrationStage, PalletRcMigratorQueuePriority } from '../types/pjs';
 import type { ApiDecoration } from '@polkadot/api/types';
 import type { Vec, Bytes } from '@polkadot/types';
 import type { Event } from '@polkadot/types/interfaces';
@@ -51,6 +51,8 @@ export class BlockProcessor {
   private previousDmpQueueSize: number = 0;
   private currentMode: ProcessingMode = ProcessingMode.DETECTION;
   private migrationStartBlockNumber?: number;
+  private rcPriorityConfigQueried: boolean = false;
+  private ahPriorityConfigQueried: boolean = false;
 
   private constructor() {
     // Initialize queues for both chains
@@ -62,6 +64,8 @@ export class BlockProcessor {
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
     this.currentMode = ProcessingMode.DETECTION;
+    this.rcPriorityConfigQueried = false;
+    this.ahPriorityConfigQueried = false;
   }
 
   /**
@@ -429,6 +433,11 @@ export class BlockProcessor {
         if (event.section === 'parachainSystem' && event.method === 'UpwardMessageSent') {
           await this.handleAssetHubUpwardMessageSent(event, item);
         }
+
+        // Handle ahMigrator.DmpQueuePrioritySet event
+        if (event.section === 'ahMigrator' && event.method === 'DmpQueuePrioritySet') {
+          await this.handleDmpQueuePriorityChangedEvent(event, apiAt, item);
+        }
       }
 
       // Emit pallet migration events after processing all events in this block
@@ -472,6 +481,11 @@ export class BlockProcessor {
         // Handle messageQueue.Processed events (UMP latency)
         if (event.section === 'messageQueue' && event.method === 'Processed') {
           await this.handleRelayChainMessageQueueProcessed(event, item);
+        }
+
+        // Handle rcMigrator.AhUmpQueuePriorityConfigSet event
+        if (event.section === 'rcMigrator' && event.method === 'AhUmpQueuePriorityConfigSet') {
+          await this.handleUmpQueuePriorityChangedEvent(event, apiAt, item);
         }
       }
     } catch (error) {
@@ -640,7 +654,7 @@ export class BlockProcessor {
    * Relay Chain event handlers
    */
   private async handleRelayChainMessageQueueProcessed(
-    event: Event,
+    _: Event,
     item: QueueItem
   ): Promise<void> {
     try {
@@ -686,11 +700,23 @@ export class BlockProcessor {
     item: QueueItem
   ): Promise<void> {
     try {
-      const [pendingUpwardMessages] = await Promise.all([
-        apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
-      ]);
+      // Query priority config only once on first full mode block
+      if (!this.ahPriorityConfigQueried) {
+        const [pendingUpwardMessages, dmpQueuePriority] = await Promise.all([
+          apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
+          apiAt.query.ahMigrator.dmpQueuePriorityConfig<PalletRcMigratorQueuePriority>(),
+        ]);
 
-      await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
+        await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
+        await this.handleDmpQueuePriority(dmpQueuePriority, item);
+        this.ahPriorityConfigQueried = true;
+      } else {
+        const [pendingUpwardMessages] = await Promise.all([
+          apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
+        ]);
+
+        await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
+      }
       // TODO: Query Asset Hub specific storage:
       // - ahMigrator.ahMigrationStage (Do we actually need this?)
 
@@ -717,16 +743,32 @@ export class BlockProcessor {
     item: QueueItem
   ): Promise<void> {
     try {
-      const [migrationStage, dmpMessageQueue] = await Promise.all([
-        apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
-        apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
-          1000
-        ),
-      ]);
+      // Query priority config only once on first full mode block
+      if (!this.rcPriorityConfigQueried) {
+        const [migrationStage, dmpMessageQueue, umpQueuePriority] = await Promise.all([
+          apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
+          apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
+            1000
+          ),
+          apiAt.query.rcMigrator.ahUmpQueuePriorityConfig<PalletRcMigratorQueuePriority>(),
+        ]);
 
-      // TODO: Is there specific ordering to this or can we put it in a Promise.all?
-      await this.handleRcMigrationStage(migrationStage, item);
-      await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
+        await this.handleRcMigrationStage(migrationStage, item);
+        await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
+        await this.handleUmpQueuePriority(umpQueuePriority, item);
+
+        this.rcPriorityConfigQueried = true;
+      } else {
+        const [migrationStage, dmpMessageQueue] = await Promise.all([
+          apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
+          apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
+            1000
+          ),
+        ]);
+
+        await this.handleRcMigrationStage(migrationStage, item);
+        await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
+      }
 
       Log.service({
         service: 'Block Processor',
@@ -922,6 +964,104 @@ export class BlockProcessor {
       Log.chainEvent({
         chain: 'relay-chain',
         eventType: 'migration stage processing error',
+        error: error as Error,
+      });
+    }
+  }
+
+  private async handleUmpQueuePriority(
+    queuePriority: PalletRcMigratorQueuePriority,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      const priorityType = queuePriority.type;
+
+      eventService.emit('umpQueuePriority', {
+        type: priorityType,
+        timestamp: new Date(item.timestamp!).toISOString(),
+      });
+
+      Log.service({
+        service: 'UMP Queue Priority',
+        action: 'UMP queue priority config retrieved',
+        details: { type: priorityType },
+      });
+    } catch (error) {
+      Log.service({
+        service: 'UMP Queue Priority',
+        action: 'Error processing UMP queue priority',
+        error: error as Error,
+      });
+    }
+  }
+
+  private async handleDmpQueuePriority(
+    queuePriority: any,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      const priorityType = queuePriority.type;
+
+      eventService.emit('dmpQueuePriority', {
+        type: priorityType,
+        timestamp: new Date(item.timestamp!).toISOString(),
+      });
+
+      Log.service({
+        service: 'DMP Queue Priority',
+        action: 'DMP queue priority config retrieved',
+        details: { type: priorityType },
+      });
+    } catch (error) {
+      Log.service({
+        service: 'DMP Queue Priority',
+        action: 'Error processing DMP queue priority',
+        error: error as Error,
+      });
+    }
+  }
+
+  private async handleUmpQueuePriorityChangedEvent(
+    _: Event,
+    apiAt: ApiDecoration<'promise'>,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      Log.service({
+        service: 'UMP Queue Priority',
+        action: 'AhUmpQueuePrioritySet event detected - re-querying config',
+        details: { blockNumber: item.blockNumber },
+      });
+
+      const umpQueuePriority = await apiAt.query.rcMigrator.ahUmpQueuePriorityConfig<PalletRcMigratorQueuePriority>();
+      await this.handleUmpQueuePriority(umpQueuePriority, item);
+    } catch (error) {
+      Log.service({
+        service: 'UMP Queue Priority',
+        action: 'Error handling UMP priority change event',
+        error: error as Error,
+      });
+    }
+  }
+
+  private async handleDmpQueuePriorityChangedEvent(
+    _: Event,
+    apiAt: ApiDecoration<'promise'>,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      Log.service({
+        service: 'DMP Queue Priority',
+        action: 'DmpQueuePrioritySet event detected - re-querying config',
+        details: { blockNumber: item.blockNumber },
+      });
+
+      const dmpQueuePriority = await apiAt.query.ahMigrator.dmpQueuePriorityConfig();
+      await this.handleDmpQueuePriority(dmpQueuePriority, item);
+    } catch (error) {
+      Log.service({
+        service: 'DMP Queue Priority',
+        action: 'Error handling DMP priority change event',
         error: error as Error,
       });
     }
