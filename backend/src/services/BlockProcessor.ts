@@ -435,7 +435,7 @@ export class BlockProcessor {
         }
 
         // Handle ahMigrator.DmpQueuePrioritySet event
-        if (event.section === 'ahMigrator' && event.method === 'DmpQueuePrioritySet') {
+        if (event.section === 'ahMigrator' && event.method === 'DmpQueuePriorityConfigSet') {
           await this.handleDmpQueuePriorityChangedEvent(event, apiAt, item);
         }
       }
