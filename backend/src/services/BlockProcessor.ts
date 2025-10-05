@@ -1,4 +1,4 @@
-import type { PalletRcMigratorMigrationStage, PalletRcMigratorQueuePriority } from '../types/pjs';
+import type { PalletRcMigratorMigrationStage, PalletRcMigratorQueuePriority, PalletRcMigratorAccountsMigratedBalances } from '../types/pjs';
 import type { ApiDecoration } from '@polkadot/api/types';
 import type { Vec, Bytes } from '@polkadot/types';
 import type { Event } from '@polkadot/types/interfaces';
@@ -49,6 +49,7 @@ export class BlockProcessor {
   private processing: Map<string, boolean> = new Map();
   private lastBlockNumber: Map<string, number> = new Map();
   private previousDmpQueueSize: number = 0;
+  private previousRcBalanceMigration: { kept: string; migrated: string } | null = null;
   private currentMode: ProcessingMode = ProcessingMode.DETECTION;
   private migrationStartBlockNumber?: number;
   private rcPriorityConfigQueried: boolean = false;
@@ -745,29 +746,33 @@ export class BlockProcessor {
     try {
       // Query priority config only once on first full mode block
       if (!this.rcPriorityConfigQueried) {
-        const [migrationStage, dmpMessageQueue, umpQueuePriority] = await Promise.all([
+        const [migrationStage, dmpMessageQueue, umpQueuePriority, rcBalanceMigration] = await Promise.all([
           apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
           apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
             1000
           ),
           apiAt.query.rcMigrator.ahUmpQueuePriorityConfig<PalletRcMigratorQueuePriority>(),
+          apiAt.query.rcMigrator.rcMigratedBalance<PalletRcMigratorAccountsMigratedBalances>(),
         ]);
 
         await this.handleRcMigrationStage(migrationStage, item);
         await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
         await this.handleUmpQueuePriority(umpQueuePriority, item);
+        await this.handleRcBalanceMigration(rcBalanceMigration, item);
 
         this.rcPriorityConfigQueried = true;
       } else {
-        const [migrationStage, dmpMessageQueue] = await Promise.all([
+        const [migrationStage, dmpMessageQueue, rcBalanceMigration] = await Promise.all([
           apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
           apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
             1000
           ),
+          apiAt.query.rcMigrator.rcMigratedBalance<PalletRcMigratorAccountsMigratedBalances>(),
         ]);
 
         await this.handleRcMigrationStage(migrationStage, item);
         await this.handleRcDownwardMessageQueues(dmpMessageQueue, item);
+        await this.handleRcBalanceMigration(rcBalanceMigration, item);
       }
 
       Log.service({
@@ -1062,6 +1067,63 @@ export class BlockProcessor {
       Log.service({
         service: 'DMP Queue Priority',
         action: 'Error handling DMP priority change event',
+        error: error as Error,
+      });
+    }
+  }
+
+  private async handleRcBalanceMigration(
+    balanceMigration: PalletRcMigratorAccountsMigratedBalances,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      const kept = balanceMigration.kept.toString();
+      const migrated = balanceMigration.migrated.toString();
+
+      // Don't emit if migrated goes to 0 after previously being above 0 (migration completion reset)
+      if (
+        this.previousRcBalanceMigration &&
+        this.previousRcBalanceMigration.migrated !== '0' &&
+        migrated === '0'
+      ) {
+        Log.service({
+          service: 'RC Balance Migration',
+          action: 'Ignoring reset to zero (migration completed)',
+          details: {
+            previousMigrated: this.previousRcBalanceMigration.migrated,
+          },
+        });
+        return;
+      }
+
+      // Only emit if values have changed
+      if (
+        !this.previousRcBalanceMigration ||
+        this.previousRcBalanceMigration.kept !== kept ||
+        this.previousRcBalanceMigration.migrated !== migrated
+      ) {
+        eventService.emit('rcBalanceMigration', {
+          kept: kept.toString(),
+          migrated: migrated.toString(),
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'RC Balance Migration',
+          action: 'Balance migration values updated',
+          details: {
+            kept: kept.toString(),
+            migrated: migrated.toString(),
+          },
+        });
+
+        // Update tracking variable
+        this.previousRcBalanceMigration = { kept, migrated };
+      }
+    } catch (error) {
+      Log.service({
+        service: 'RC Balance Migration',
+        action: 'Error processing RC balance migration',
         error: error as Error,
       });
     }

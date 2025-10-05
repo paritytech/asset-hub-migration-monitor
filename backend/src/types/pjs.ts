@@ -29,14 +29,19 @@ interface PalletRcMigratorCall extends Enum {
     | 'UpdateAhMsgProcessedCount';
 }
 
+export interface PalletRcMigratorAccountsMigratedBalances extends Struct {
+  readonly kept: u128;
+  readonly migrated: u128;
+}
+
   /** @name PalletRcMigratorQueuePriority (552) */
-  export interface PalletRcMigratorQueuePriority extends Enum {
-    readonly isConfig: boolean;
-    readonly isOverrideConfig: boolean;
-    readonly asOverrideConfig: ITuple<[u32, u32]>;
-    readonly isDisabled: boolean;
-    readonly type: 'Config' | 'OverrideConfig' | 'Disabled';
-  }
+export interface PalletRcMigratorQueuePriority extends Enum {
+  readonly isConfig: boolean;
+  readonly isOverrideConfig: boolean;
+  readonly asOverrideConfig: ITuple<[u32, u32]>;
+  readonly isDisabled: boolean;
+  readonly type: 'Config' | 'OverrideConfig' | 'Disabled';
+}
 
 /** @name PalletRcMigratorMigrationStage (503) */
  export interface PalletRcMigratorMigrationStage extends Enum {
