@@ -28,7 +28,8 @@ type EventType =
   | 'dmpQueueEvent'
   | 'umpQueueEvent'
   | 'dmpQueuePriority'
-  | 'umpQueuePriority';
+  | 'umpQueuePriority'
+  | 'rcBalanceMigration';
 
 export const updatesHandler: RequestHandler = async (req: Request, res: Response) => {
   const requestedEvents = ((req.query.events as string) || '')
