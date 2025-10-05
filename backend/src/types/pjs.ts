@@ -29,6 +29,15 @@ interface PalletRcMigratorCall extends Enum {
     | 'UpdateAhMsgProcessedCount';
 }
 
+  /** @name PalletRcMigratorQueuePriority (552) */
+  export interface PalletRcMigratorQueuePriority extends Enum {
+    readonly isConfig: boolean;
+    readonly isOverrideConfig: boolean;
+    readonly asOverrideConfig: ITuple<[u32, u32]>;
+    readonly isDisabled: boolean;
+    readonly type: 'Config' | 'OverrideConfig' | 'Disabled';
+  }
+
 /** @name PalletRcMigratorMigrationStage (503) */
  export interface PalletRcMigratorMigrationStage extends Enum {
     readonly isPending: boolean;

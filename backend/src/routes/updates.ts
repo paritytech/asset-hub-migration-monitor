@@ -26,7 +26,9 @@ type EventType =
   | 'dmpMessageCounter'
   | 'umpMessageCounter'
   | 'dmpQueueEvent'
-  | 'umpQueueEvent';
+  | 'umpQueueEvent'
+  | 'dmpQueuePriority'
+  | 'umpQueuePriority';
 
 export const updatesHandler: RequestHandler = async (req: Request, res: Response) => {
   const requestedEvents = ((req.query.events as string) || '')
