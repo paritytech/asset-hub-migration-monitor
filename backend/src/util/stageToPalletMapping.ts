@@ -1,7 +1,7 @@
 // Mapping from migration stages to pallet names (updated for Kusama)
 export const STAGE_TO_PALLET_MAP: Record<string, string> = {
-  // Pure Proxy Candidates
-  PureProxyCandidatesMigrationInit: 'PureProxyCandidates',
+  // Pure Proxy Candidates - Internal initialization stage, not tracked for migration progress
+  // PureProxyCandidatesMigrationInit: 'PureProxyCandidates', // Excluded from tracking
 
   // Account-related stages
   AccountsMigrationInit: 'Accounts',
@@ -119,7 +119,7 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
 
 // Reverse mapping from pallet names to stage names (updated for Kusama)
 export const PALLET_TO_STAGE_MAP: Record<string, string[]> = {
-  PureProxyCandidates: ['PureProxyCandidatesMigrationInit'],
+  // PureProxyCandidates excluded - internal initialization stage only
   Accounts: ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
   Multisig: ['MultisigMigrationInit', 'MultisigMigrationOngoing', 'MultisigMigrationDone'],
   Claims: ['ClaimsMigrationInit', 'ClaimsMigrationOngoing', 'ClaimsMigrationDone'],
@@ -230,4 +230,39 @@ export function getInitStageForPallet(pallet: string): string {
 // Helper function to get the Done stage name for a pallet
 export function getDoneStageForPallet(pallet: string): string {
   return `${pallet}MigrationDone`;
+}
+
+// Mapping from on-chain event pallet names to our internal pallet names
+const EVENT_PALLET_NAME_MAP: Record<string, string> = {
+  // Direct mappings
+  'Balances': 'Accounts',
+
+  // Proxy sub-pallets - all map to single Proxy pallet
+  'Proxy': 'Proxy',
+  'ProxyProxies': 'Proxy',
+  'ProxyAnnouncements': 'Proxy',
+
+  // Preimage sub-pallets - all map to single Preimage pallet
+  'Preimage': 'Preimage',
+  'PreimageLegacyStatus': 'Preimage',
+  'PreimageRequestStatus': 'Preimage',
+  'PreimageChunk': 'Preimage',
+
+  // Referenda sub-pallets - all map to single Referenda pallet
+  'Referenda': 'Referenda',
+  'ReferendaReferendums': 'Referenda',
+  'ReferendaValues': 'Referenda',
+
+  // AssetRate variants - all map to AssetRate pallet
+  'AssetRate': 'AssetRate',
+  'AssetRates': 'AssetRate',
+
+  // Scheduler variants - all map to Scheduler pallet
+  'Scheduler': 'Scheduler',
+  'SchedulerAgenda': 'Scheduler',
+};
+
+// Helper function to normalize event pallet names to internal pallet names
+export function normalizeEventPalletName(eventPalletName: string): string {
+  return EVENT_PALLET_NAME_MAP[eventPalletName] || eventPalletName;
 }

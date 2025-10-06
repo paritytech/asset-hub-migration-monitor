@@ -21,7 +21,7 @@ import {
   umpQueueEvents,
 } from '../db/schema';
 import { Log } from '../logging/Log';
-import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
+import { getCurrentStageForPallet, getPalletFromStage, normalizeEventPalletName } from '../util/stageToPalletMapping';
 
 import { AbstractApi } from './abstractApi';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
@@ -511,11 +511,14 @@ export class BlockProcessor {
    */
   private async handleAssetHubBatchProcessed(event: Event, item: QueueItem): Promise<void> {
     try {
-      const palletName = event.data[0].toString(); // This is the pallet.
+      const palletName = event.data[0].toString(); // This is the pallet from the event.
       const itemsProcessed = parseInt(event.data[1].toString()); // This is the items processed.
       const itemsFailed = parseInt(event.data[2].toString()); // This is the items failed.
-      // Handle the special case where "Balances" pallet refers to "Accounts" stage
-      const targetPallet = palletName === 'Balances' ? 'Accounts' : palletName;
+
+      // Normalize the event pallet name to our internal pallet name
+      const targetPallet = normalizeEventPalletName(palletName);
+
+      // Get the current stage for this pallet
       const currentStageName = getCurrentStageForPallet(targetPallet);
 
       if (!currentStageName) {
