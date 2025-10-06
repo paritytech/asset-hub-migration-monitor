@@ -3,7 +3,7 @@ import { useEventSource } from '../hooks/useEventSource';
 import { MIGRATION_PALLETS } from '../constants/migrationPallets';
 import './PerPalletMigrationStatus.css';
 
-const PALLETS_PER_PAGE = 6;
+const PALLETS_PER_PAGE = 7;
 
 interface PalletStatus {
   palletName: string;
