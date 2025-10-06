@@ -234,75 +234,35 @@ export function getDoneStageForPallet(pallet: string): string {
 
 // Mapping from on-chain event pallet names to our internal pallet names
 const EVENT_PALLET_NAME_MAP: Record<string, string> = {
+  // Direct mappings
   'Balances': 'Accounts',
-  'Proxy': 'Proxy', // Will be split into ProxyProxies and ProxyAnnouncements based on stage
-  'Preimage': 'Preimage', // Will be split into PreimageLegacyStatus, PreimageRequestStatus, PreimageChunk based on stage
-  'Referenda': 'Referenda', // Will be split into ReferendaReferendums and ReferendaValues based on stage
-  'AssetRate': 'AssetRate', // Will be mapped to AssetRates
-  'Scheduler': 'Scheduler', // Will be mapped to SchedulerAgenda based on stage
+
+  // Proxy sub-pallets - all map to single Proxy pallet
+  'Proxy': 'Proxy',
+  'ProxyProxies': 'Proxy',
+  'ProxyAnnouncements': 'Proxy',
+
+  // Preimage sub-pallets - all map to single Preimage pallet
+  'Preimage': 'Preimage',
+  'PreimageLegacyStatus': 'Preimage',
+  'PreimageRequestStatus': 'Preimage',
+  'PreimageChunk': 'Preimage',
+
+  // Referenda sub-pallets - all map to single Referenda pallet
+  'Referenda': 'Referenda',
+  'ReferendaReferendums': 'Referenda',
+  'ReferendaValues': 'Referenda',
+
+  // AssetRate variants - all map to AssetRate pallet
+  'AssetRate': 'AssetRate',
+  'AssetRates': 'AssetRate',
+
+  // Scheduler variants - all map to Scheduler pallet
+  'Scheduler': 'Scheduler',
+  'SchedulerAgenda': 'Scheduler',
 };
 
 // Helper function to normalize event pallet names to internal pallet names
-export function normalizeEventPalletName(eventPalletName: string, currentStage?: string): string {
-  // First check if there's a direct mapping
-  const mappedName = EVENT_PALLET_NAME_MAP[eventPalletName];
-
-  if (!mappedName) {
-    // No mapping needed, return as-is
-    return eventPalletName;
-  }
-
-  // For pallets with sub-stages, determine which specific pallet based on current stage
-  if (currentStage) {
-    // Proxy has two sub-stages: Proxies and Announcements
-    if (eventPalletName === 'Proxy') {
-      if (currentStage.includes('Announcements')) {
-        return 'ProxyAnnouncements';
-      }
-      if (currentStage.includes('Proxies')) {
-        return 'ProxyProxies';
-      }
-      return 'Proxy';
-    }
-
-    // Preimage has three sub-stages: LegacyStatus, RequestStatus, and Chunk
-    if (eventPalletName === 'Preimage') {
-      if (currentStage.includes('LegacyRequestStatus') || currentStage.includes('LegacyStatus')) {
-        return 'PreimageLegacyStatus';
-      }
-      if (currentStage.includes('RequestStatus')) {
-        return 'PreimageRequestStatus';
-      }
-      if (currentStage.includes('Chunks') || currentStage.includes('Chunk')) {
-        return 'PreimageChunk';
-      }
-      return 'Preimage';
-    }
-
-    // Referenda has two sub-stages: Referendums and Values
-    if (eventPalletName === 'Referenda') {
-      if (currentStage.includes('Referendums')) {
-        return 'ReferendaReferendums';
-      }
-      if (currentStage.includes('Values')) {
-        return 'ReferendaValues';
-      }
-      return 'Referenda';
-    }
-
-    // AssetRate maps to AssetRates
-    if (eventPalletName === 'AssetRate') {
-      return 'AssetRates';
-    }
-
-    // Scheduler maps to SchedulerAgenda when in the Agenda stage
-    if (eventPalletName === 'Scheduler') {
-      if (currentStage.includes('Agenda')) {
-        return 'SchedulerAgenda';
-      }
-      return 'Scheduler';
-    }
-  }
-
-  return mappedName;
+export function normalizeEventPalletName(eventPalletName: string): string {
+  return EVENT_PALLET_NAME_MAP[eventPalletName] || eventPalletName;
 }

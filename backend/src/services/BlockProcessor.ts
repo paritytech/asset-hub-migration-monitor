@@ -515,21 +515,20 @@ export class BlockProcessor {
       const itemsProcessed = parseInt(event.data[1].toString()); // This is the items processed.
       const itemsFailed = parseInt(event.data[2].toString()); // This is the items failed.
 
-      // First, get the current stage name to determine the context
-      const initialTargetPallet = palletName === 'Balances' ? 'Accounts' : palletName;
-      const currentStageName = getCurrentStageForPallet(initialTargetPallet);
+      // Normalize the event pallet name to our internal pallet name
+      const targetPallet = normalizeEventPalletName(palletName);
+
+      // Get the current stage for this pallet
+      const currentStageName = getCurrentStageForPallet(targetPallet);
 
       if (!currentStageName) {
         Log.chainEvent({
           chain: 'asset-hub',
           eventType: 'BatchProcessed - unknown pallet',
-          details: { palletName, initialTargetPallet },
+          details: { palletName, targetPallet },
         });
         return;
       }
-
-      // Now normalize the pallet name with the stage context
-      const targetPallet = normalizeEventPalletName(palletName, currentStageName);
 
       const currentStage = await db.query.migrationStages.findFirst({
         where: eq(migrationStages.stage, currentStageName),
