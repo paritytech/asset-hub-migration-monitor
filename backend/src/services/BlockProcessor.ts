@@ -1,4 +1,4 @@
-import type { PalletRcMigratorMigrationStage, PalletRcMigratorQueuePriority, PalletRcMigratorAccountsMigratedBalances } from '../types/pjs';
+import type { PalletRcMigratorMigrationStage, PalletRcMigratorQueuePriority, PalletRcMigratorAccountsMigratedBalances, PalletAhMigratorBalancesBefore } from '../types/pjs';
 import type { ApiDecoration } from '@polkadot/api/types';
 import type { Vec, Bytes } from '@polkadot/types';
 import type { Event } from '@polkadot/types/interfaces';
@@ -6,6 +6,7 @@ import type {
   FrameSystemEventRecord,
   PolkadotCorePrimitivesInboundDownwardMessage,
 } from '@polkadot/types/lookup';
+import { BN_ZERO } from '@polkadot/util';
 
 import { eq, desc, and } from 'drizzle-orm';
 
@@ -703,14 +704,15 @@ export class BlockProcessor {
     try {
       // Query priority config only once on first full mode block
       if (!this.ahPriorityConfigQueried) {
-        const [pendingUpwardMessages, dmpQueuePriority] = await Promise.all([
+        const [pendingUpwardMessages, dmpQueuePriority, ahBalancesBefore] = await Promise.all([
           apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
           apiAt.query.ahMigrator.dmpQueuePriorityConfig<PalletRcMigratorQueuePriority>(),
+          apiAt.query.ahMigrator.ahBalancesBefore<PalletAhMigratorBalancesBefore>()
         ]);
 
         await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
         await this.handleDmpQueuePriority(dmpQueuePriority, item);
-        this.ahPriorityConfigQueried = true;
+        await this.handleAhBalancesBefore(ahBalancesBefore, item);
       } else {
         const [pendingUpwardMessages] = await Promise.all([
           apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
@@ -718,8 +720,6 @@ export class BlockProcessor {
 
         await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
       }
-      // TODO: Query Asset Hub specific storage:
-      // - ahMigrator.ahMigrationStage (Do we actually need this?)
 
       Log.service({
         service: 'Block Processor',
@@ -1124,6 +1124,41 @@ export class BlockProcessor {
       Log.service({
         service: 'RC Balance Migration',
         action: 'Error processing RC balance migration',
+        error: error as Error,
+      });
+    }
+  }
+
+  private async handleAhBalancesBefore(
+    balancesBefore: PalletAhMigratorBalancesBefore,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      const checkingAccountBalance = balancesBefore.checkingAccount.toString();
+      const totalIssuanceBalance = balancesBefore.totalIssuance.toString();
+
+      if (balancesBefore.totalIssuance.gt(BN_ZERO)) {
+        this.ahPriorityConfigQueried = true;
+      }
+
+      eventService.emit('ahBalancesBefore', {
+        checkingAccount: checkingAccountBalance,
+        totalIssuance: totalIssuanceBalance,
+        timestamp: new Date(item.timestamp!).toISOString(),
+      });
+
+      Log.service({
+        service: 'AH Balances Before',
+        action: 'Asset Hub balances before migration retrieved',
+        details: {
+          checkingAccount: checkingAccountBalance,
+          totalIssuance: totalIssuanceBalance,
+        },
+      });
+    } catch (error) {
+      Log.service({
+        service: 'AH Balances Before',
+        action: 'Error processing AH balances before migration',
         error: error as Error,
       });
     }
