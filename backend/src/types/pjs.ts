@@ -29,6 +29,11 @@ interface PalletRcMigratorCall extends Enum {
     | 'UpdateAhMsgProcessedCount';
 }
 
+export interface PalletAhMigratorBalancesBefore extends Struct {
+  readonly checkingAccount: u128;
+  readonly totalIssuance: u128;
+}
+
 export interface PalletRcMigratorAccountsMigratedBalances extends Struct {
   readonly kept: u128;
   readonly migrated: u128;

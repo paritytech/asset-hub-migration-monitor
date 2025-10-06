@@ -114,7 +114,7 @@ const BalanceVerification: React.FC = () => {
 
           <div className="balance-metrics">
             <div className="balance-metric">
-              <div className="balance-metric-label">Before Migration</div>
+              <div className="balance-metric-label">Total Issuance Before Migration</div>
               <div className="balance-metric-value">
                 {formatBalance(ahBalances?.totalIssuance || null)}
               </div>
