@@ -159,16 +159,6 @@ const BalanceVerification: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Verification Status */}
-      <div className={`verification-status verification-${verification.status}`}>
-        <div className="verification-icon">
-          {verification.status === 'verified' && '✓'}
-          {verification.status === 'failed' && '✗'}
-          {verification.status === 'pending' && '⋯'}
-        </div>
-        <div className="verification-message">{verification.message}</div>
-      </div>
     </section>
   );
 };

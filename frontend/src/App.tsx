@@ -34,7 +34,7 @@ function App() {
       <header>
         <div className="logo">
           <img src={polkadotLogo} alt="Polkadot Logo" />
-          <h1>Asset Hub Migration Monitor</h1>
+          <h1>Asset Hub Kusama Migration Monitor</h1>
         </div>
         <div className="header-info">
           {process.env.ALLOW_REMOTE_BACKEND === 'true' && (

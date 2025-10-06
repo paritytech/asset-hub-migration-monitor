@@ -55,6 +55,7 @@ export class BlockProcessor {
   private migrationStartBlockNumber?: number;
   private rcPriorityConfigQueried: boolean = false;
   private ahPriorityConfigQueried: boolean = false;
+  private initialStageCheckDone: boolean = false;
 
   private constructor() {
     // Initialize queues for both chains
@@ -341,6 +342,11 @@ export class BlockProcessor {
           timestampDate: new Date(timestamp).toISOString(),
         },
       });
+
+      // Initial stage check - only on Relay Chain, only once, only if no stages in DB
+      if (item.chain === 'relay-chain' && !this.initialStageCheckDone) {
+        await this.performInitialStageCheck(apiAt, item);
+      }
 
       if (this.currentMode === ProcessingMode.DETECTION) {
         // Detection mode: only process relay chain for migration events
@@ -1161,6 +1167,78 @@ export class BlockProcessor {
         action: 'Error processing AH balances before migration',
         error: error as Error,
       });
+    }
+  }
+
+  /**
+   * Perform an initial stage check on startup to see if migration is already scheduled/ongoing
+   * This runs only once when processing the first Relay Chain block
+   */
+  private async performInitialStageCheck(
+    apiAt: ApiDecoration<'promise'>,
+    item: QueueItem
+  ): Promise<void> {
+    try {
+      // Check if we already have stage data in the database
+      const existingStage = await db.query.migrationStages.findFirst({
+        where: eq(migrationStages.chain, 'relay-chain'),
+      });
+
+      // If we already have stage data, skip this check
+      if (existingStage) {
+        Log.service({
+          service: 'Block Processor',
+          action: 'Skipping initial stage check - stages already in DB',
+          details: { existingStage: existingStage.stage },
+        });
+        this.initialStageCheckDone = true;
+        return;
+      }
+
+      // Query the current migration stage
+      const rcMigrationStage = await apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>();
+
+      const stageType = rcMigrationStage.type;
+      const isOngoing = !rcMigrationStage.isPending && !rcMigrationStage.isScheduled;
+
+      Log.service({
+        service: 'Block Processor',
+        action: 'Initial stage check performed',
+        details: {
+          stageType,
+          isScheduled: rcMigrationStage.isScheduled,
+          isOngoing,
+        },
+      });
+
+      // Store the stage in the database
+      await this.handleRcMigrationStage(rcMigrationStage, item);
+
+      // If migration is scheduled or ongoing, switch to FULL mode immediately
+      if (isOngoing) {
+
+        this.currentMode = ProcessingMode.FULL;
+
+        Log.service({
+          service: 'Block Processor',
+          action: 'Switching to FULL mode from initial check',
+          details: {
+            reason: rcMigrationStage.isScheduled ? 'Migration is scheduled' : 'Migration is ongoing',
+            migrationBlockNumber: this.migrationStartBlockNumber,
+            currentBlock: item.blockNumber,
+          },
+        });
+      }
+
+      this.initialStageCheckDone = true;
+    } catch (error) {
+      Log.service({
+        service: 'Block Processor',
+        action: 'Error in initial stage check',
+        error: error as Error,
+      });
+      // Mark as done even on error to avoid retrying every block
+      this.initialStageCheckDone = true;
     }
   }
 
