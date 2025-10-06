@@ -17,8 +17,6 @@ interface AhBalancesBefore {
 
 interface AccountMigration {
   totalAccounts: number;
-  liquidAccounts: number;
-  nonLiquidAccounts: number;
   timestamp: string;
 }
 
@@ -41,10 +39,13 @@ const BalanceVerification: React.FC = () => {
     }
   }, []));
 
-  // Subscribe to account migration events
-  useEventSource(['accountMigration'], useCallback((eventType: EventType, data: AccountMigration) => {
-    if (eventType === 'accountMigration') {
-      setAccountMigration(data);
+  // Subscribe to pallet migration update events for Accounts pallet
+  useEventSource(['palletMigrationUpdate'], useCallback((eventType: EventType, data: any) => {
+    if (eventType === 'palletMigrationUpdate' && data.palletName === 'Accounts') {
+      setAccountMigration({
+        totalAccounts: data.totalItemsProcessed || 0,
+        timestamp: data.lastUpdated,
+      });
     }
   }, []));
 
@@ -137,23 +138,9 @@ const BalanceVerification: React.FC = () => {
 
           <div className="balance-metrics">
             <div className="balance-metric">
-              <div className="balance-metric-label">Total Migrated</div>
+              <div className="balance-metric-label">Total Accounts Migrated</div>
               <div className="balance-metric-value">
                 {accountMigration?.totalAccounts.toLocaleString() || '0'}
-              </div>
-            </div>
-
-            <div className="balance-metric">
-              <div className="balance-metric-label">Liquid</div>
-              <div className="balance-metric-value">
-                {accountMigration?.liquidAccounts.toLocaleString() || '0'}
-              </div>
-            </div>
-
-            <div className="balance-metric">
-              <div className="balance-metric-label">Non-Liquid</div>
-              <div className="balance-metric-value">
-                {accountMigration?.nonLiquidAccounts.toLocaleString() || '0'}
               </div>
             </div>
           </div>
