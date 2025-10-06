@@ -1,7 +1,7 @@
 // Mapping from migration stages to pallet names (updated for Kusama)
 export const STAGE_TO_PALLET_MAP: Record<string, string> = {
-  // Pure Proxy Candidates
-  PureProxyCandidatesMigrationInit: 'PureProxyCandidates',
+  // Pure Proxy Candidates - Internal initialization stage, not tracked for migration progress
+  // PureProxyCandidatesMigrationInit: 'PureProxyCandidates', // Excluded from tracking
 
   // Account-related stages
   AccountsMigrationInit: 'Accounts',
@@ -119,7 +119,7 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
 
 // Reverse mapping from pallet names to stage names (updated for Kusama)
 export const PALLET_TO_STAGE_MAP: Record<string, string[]> = {
-  PureProxyCandidates: ['PureProxyCandidatesMigrationInit'],
+  // PureProxyCandidates excluded - internal initialization stage only
   Accounts: ['AccountsMigrationInit', 'AccountsMigrationOngoing', 'AccountsMigrationDone'],
   Multisig: ['MultisigMigrationInit', 'MultisigMigrationOngoing', 'MultisigMigrationDone'],
   Claims: ['ClaimsMigrationInit', 'ClaimsMigrationOngoing', 'ClaimsMigrationDone'],

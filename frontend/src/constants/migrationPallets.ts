@@ -1,6 +1,6 @@
 // Migration pallets in order (updated for Kusama)
+// Note: PureProxyCandidates is excluded as it's an internal initialization stage, not a tracked migration
 export const MIGRATION_PALLETS = [
-  'PureProxyCandidates',
   'Accounts',
   'Multisig',
   'Claims',
