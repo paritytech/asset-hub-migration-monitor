@@ -219,7 +219,7 @@ const PerPalletMigrationStatus: React.FC = () => {
         <div className="card-actions">
         </div>
       </div>
-      
+
       <div className="table-container">
         <table>
           <thead>
@@ -279,7 +279,7 @@ const PerPalletMigrationStatus: React.FC = () => {
           </tbody>
         </table>
       </div>
-      
+
       {totalPages > 1 && (
         <div className="pagination">
           <button 
