@@ -21,7 +21,7 @@ import {
   umpQueueEvents,
 } from '../db/schema';
 import { Log } from '../logging/Log';
-import { getCurrentStageForPallet, getPalletFromStage } from '../util/stageToPalletMapping';
+import { getCurrentStageForPallet, getPalletFromStage, normalizeEventPalletName } from '../util/stageToPalletMapping';
 
 import { AbstractApi } from './abstractApi';
 import { PalletMigrationCache } from './cache/PalletMigrationCache';
@@ -511,21 +511,25 @@ export class BlockProcessor {
    */
   private async handleAssetHubBatchProcessed(event: Event, item: QueueItem): Promise<void> {
     try {
-      const palletName = event.data[0].toString(); // This is the pallet.
+      const palletName = event.data[0].toString(); // This is the pallet from the event.
       const itemsProcessed = parseInt(event.data[1].toString()); // This is the items processed.
       const itemsFailed = parseInt(event.data[2].toString()); // This is the items failed.
-      // Handle the special case where "Balances" pallet refers to "Accounts" stage
-      const targetPallet = palletName === 'Balances' ? 'Accounts' : palletName;
-      const currentStageName = getCurrentStageForPallet(targetPallet);
+
+      // First, get the current stage name to determine the context
+      const initialTargetPallet = palletName === 'Balances' ? 'Accounts' : palletName;
+      const currentStageName = getCurrentStageForPallet(initialTargetPallet);
 
       if (!currentStageName) {
         Log.chainEvent({
           chain: 'asset-hub',
           eventType: 'BatchProcessed - unknown pallet',
-          details: { palletName, targetPallet },
+          details: { palletName, initialTargetPallet },
         });
         return;
       }
+
+      // Now normalize the pallet name with the stage context
+      const targetPallet = normalizeEventPalletName(palletName, currentStageName);
 
       const currentStage = await db.query.migrationStages.findFirst({
         where: eq(migrationStages.stage, currentStageName),
