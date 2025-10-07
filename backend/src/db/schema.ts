@@ -88,3 +88,17 @@ export type NewDmpQueueEvent = typeof dmpQueueEvents.$inferInsert;
 
 export type UmpQueueEvent = typeof umpQueueEvents.$inferSelect;
 export type NewUmpQueueEvent = typeof umpQueueEvents.$inferInsert;
+
+// Balance Verification - stores balance data for persistence
+export const balanceVerification = sqliteTable('balance_verification', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chain: text('chain').notNull(), // 'relay-chain' or 'asset-hub'
+  balanceType: text('balance_type').notNull(), // 'kept', 'migrated', 'checkingAccount', 'totalIssuance'
+  balance: text('balance').notNull(), // Stored as string to preserve precision
+  lastUpdated: integer('last_updated', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type BalanceVerification = typeof balanceVerification.$inferSelect;
+export type NewBalanceVerification = typeof balanceVerification.$inferInsert;

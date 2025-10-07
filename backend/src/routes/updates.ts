@@ -1,8 +1,8 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and } from 'drizzle-orm';
 import { Request, Response, RequestHandler } from 'express';
 
 import { db } from '../db';
-import { migrationStages, xcmMessageCounters } from '../db/schema';
+import { migrationStages, xcmMessageCounters, balanceVerification } from '../db/schema';
 import { Log } from '../logging/Log';
 import { PalletMigrationCache } from '../services/cache/PalletMigrationCache';
 import { TimeInStageCache } from '../services/cache/TimeInStageCache';
@@ -189,6 +189,46 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         ...summary,
         timestamp: new Date().toISOString(),
       });
+    }
+
+    // Handle RC balance migration initial state
+    if (requestedEvents.includes('rcBalanceMigration')) {
+      const rcBalances = await db.query.balanceVerification.findMany({
+        where: eq(balanceVerification.chain, 'relay-chain'),
+      });
+
+      if (rcBalances.length > 0) {
+        const keptBalance = rcBalances.find(b => b.balanceType === 'kept');
+        const migratedBalance = rcBalances.find(b => b.balanceType === 'migrated');
+
+        if (keptBalance && migratedBalance) {
+          sendEvent('rcBalanceMigration', {
+            kept: keptBalance.balance,
+            migrated: migratedBalance.balance,
+            timestamp: keptBalance.lastUpdated.toISOString(),
+          });
+        }
+      }
+    }
+
+    // Handle AH balances before initial state
+    if (requestedEvents.includes('ahBalancesBefore')) {
+      const ahBalances = await db.query.balanceVerification.findMany({
+        where: eq(balanceVerification.chain, 'asset-hub'),
+      });
+
+      if (ahBalances.length > 0) {
+        const checkingAccount = ahBalances.find(b => b.balanceType === 'checkingAccount');
+        const totalIssuance = ahBalances.find(b => b.balanceType === 'totalIssuance');
+
+        if (checkingAccount && totalIssuance) {
+          sendEvent('ahBalancesBefore', {
+            checkingAccount: checkingAccount.balance,
+            totalIssuance: totalIssuance.balance,
+            timestamp: checkingAccount.lastUpdated.toISOString(),
+          });
+        }
+      }
     }
   } catch (error) {
     logger.error('Error sending initial state:', error);

@@ -128,6 +128,22 @@ const PerPalletMigrationStatus: React.FC = () => {
           lastUpdated: Date.now(),
         });
 
+        // Mark all pallets before the current active one as completed
+        const currentPalletIndex = MIGRATION_PALLETS.indexOf(data.palletName);
+        if (currentPalletIndex > 0 && !data.isPalletCompleted) {
+          for (let i = 0; i < currentPalletIndex; i++) {
+            const previousPallet = MIGRATION_PALLETS[i];
+            const previousStatus = newStatuses.get(previousPallet);
+            if (previousStatus && previousStatus.status !== 'completed') {
+              newStatuses.set(previousPallet, {
+                ...previousStatus,
+                status: 'completed',
+                isCompleted: true,
+              });
+            }
+          }
+        }
+
         return newStatuses;
       });
     }
