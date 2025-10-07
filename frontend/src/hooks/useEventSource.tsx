@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 
-export type EventType = 'rcHead' | 'ahHead' | 'rcXcmMessageCounter' | 'ahXcmMessageCounter' | 'rcStageUpdate' | 'ahStageUpdate' | 'dmpLatency' | 'dmpQueueEvent' | 'dmpMetrics' | 'umpLatency' | 'umpMetrics' | 'umpQueueEvent' | 'palletMigrationUpdate' | 'palletMigrationSummary' | 'rcBalanceMigration' | 'ahBalancesBefore' | 'accountMigration' | 'dmpMessageCounter' | 'umpMessageCounter' | 'dmpQueuePriority' | 'umpQueuePriority';
+export type EventType = 'rcHead' | 'ahHead' | 'rcXcmMessageCounter' | 'ahXcmMessageCounter' | 'rcStageUpdate' | 'ahStageUpdate' | 'dmpLatency' | 'dmpQueueEvent' | 'dmpMetrics' | 'umpLatency' | 'umpMetrics' | 'umpQueueEvent' | 'palletMigrationUpdate' | 'palletMigrationSummary' | 'rcBalanceMigration' | 'ahBalancesBefore' | 'accountMigration' | 'dmpMessageCounter' | 'umpMessageCounter' | 'dmpQueuePriority' | 'umpQueuePriority' | 'migrationAlert';
 
 interface EventSourceContextType {
   subscribe: (events: EventType[], callback: (eventType: EventType, data: any) => void) => () => void;
@@ -84,7 +84,7 @@ export const EventSourceProvider: React.FC<EventSourceProviderProps> = ({
       eventSourceRef.current.close();
     }
 
-    const allEventTypes: EventType[] = ['rcHead', 'ahHead', 'dmpMessageCounter', 'umpMessageCounter', 'rcStageUpdate', 'ahStageUpdate', 'dmpQueueEvent', 'umpQueueEvent', 'dmpQueuePriority', 'umpQueuePriority', 'rcBalanceMigration', 'ahBalancesBefore', 'palletMigrationUpdate', 'palletMigrationSummary'];
+    const allEventTypes: EventType[] = ['rcHead', 'ahHead', 'dmpMessageCounter', 'umpMessageCounter', 'rcStageUpdate', 'ahStageUpdate', 'dmpQueueEvent', 'umpQueueEvent', 'dmpQueuePriority', 'umpQueuePriority', 'rcBalanceMigration', 'ahBalancesBefore', 'palletMigrationUpdate', 'palletMigrationSummary', 'migrationAlert'];
     const apiUrl = url ? `${url}/api/updates` : '/api/updates';
     const es = new EventSource(`${apiUrl}?events=${allEventTypes.join(',')}`);
     
@@ -168,25 +168,26 @@ export const EventSourceProvider: React.FC<EventSourceProviderProps> = ({
   }, [backendUrl, createEventSource, clearReconnectTimeout]);
 
   const subscribe = useCallback((events: EventType[], callback: (eventType: EventType, data: any) => void) => {
+    // Store wrapper functions so we can properly clean them up later
+    const wrappers = new Map<EventType, (data: any) => void>();
+
     // Add the callback to listeners for each event type
     events.forEach(eventType => {
       if (!listeners.has(eventType)) {
         listeners.set(eventType, new Set());
       }
-      listeners.get(eventType)?.add((data) => callback(eventType, data));
+      const wrapper = (data: any) => callback(eventType, data);
+      wrappers.set(eventType, wrapper);
+      listeners.get(eventType)?.add(wrapper);
     });
 
     // Return cleanup function
     return () => {
       events.forEach(eventType => {
-        const eventListeners = listeners.get(eventType);
-        if (eventListeners) {
-          eventListeners.forEach(listener => {
-            if (listener.toString() === ((data: any) => callback(eventType, data)).toString()) {
-              eventListeners.delete(listener);
-            }
-          });
-          if (eventListeners.size === 0) {
+        const wrapper = wrappers.get(eventType);
+        if (wrapper) {
+          listeners.get(eventType)?.delete(wrapper);
+          if (listeners.get(eventType)?.size === 0) {
             listeners.delete(eventType);
           }
         }
