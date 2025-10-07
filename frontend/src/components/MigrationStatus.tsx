@@ -72,9 +72,13 @@ const LiveTimer: React.FC<{ lastUpdate: Date | null; chain: string; dotColor: st
   );
 };
 
+const ESTIMATED_TOTAL_ITEMS = 120000;
+// const ESTIMATED_TOTAL_ITEMS = 848345; // Kusama
+
 const MigrationStatus: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<MigrationStage | null>(null);
   const [completedPallets, setCompletedPallets] = useState<string[]>([]);
+  const [totalItemsProcessed, setTotalItemsProcessed] = useState<number>(0);
   const [isMobile, setIsMobile] = useState(false);
   const [rcLastUpdate, setRcLastUpdate] = useState<Date | null>(null);
   const [ahLastUpdate, setAhLastUpdate] = useState<Date | null>(null);
@@ -96,22 +100,21 @@ const MigrationStatus: React.FC = () => {
   const { error } = useEventSource(['rcStageUpdate'], useCallback((_eventType: EventType, data: MigrationStage) => {
     setCurrentStage(data);
     setRcLastUpdate(new Date()); // Reset RC timer
-    
-    // Handle MigrationDone stage - mark all pallets as completed
+
+    // Handle MigrationDone stage - set progress to 100%
     if (data.stage === 'MigrationDone') {
       setCompletedPallets([...MIGRATION_PALLETS]);
+      setTotalItemsProcessed(ESTIMATED_TOTAL_ITEMS); // Force 100%
       return;
     }
-    
-    // Update completed pallets based on the stage
-    // This is a simplified logic - you might want to enhance this based on your actual stage data
+
+    // Update completed pallets based on the stage for timeline display
     const stageName = data.stage;
-    const palletIndex = MIGRATION_PALLETS.findIndex(pallet => 
+    const palletIndex = MIGRATION_PALLETS.findIndex(pallet =>
       stageName.toLowerCase().includes(pallet.toLowerCase())
     );
-    
+
     if (palletIndex > 0) {
-      // Mark all pallets up to the current one as completed
       const newCompleted = MIGRATION_PALLETS.slice(0, palletIndex);
       setCompletedPallets(newCompleted);
     }
@@ -134,6 +137,19 @@ const MigrationStatus: React.FC = () => {
     }
   }, []));
 
+  // Subscribe to pallet migration summary to track total items processed across all pallets
+  useEventSource(['palletMigrationSummary'], useCallback((_eventType: EventType, data: any) => {
+    // Sum up all items processed and failed across all pallets
+    if (data.pallets && Array.isArray(data.pallets)) {
+      const total = data.pallets.reduce((sum: number, pallet: any) => {
+        const itemsProcessed = pallet.totalItemsProcessed || 0;
+        const itemsFailed = pallet.totalItemsFailed || 0;
+        return sum + itemsProcessed + itemsFailed;
+      }, 0);
+      setTotalItemsProcessed(total);
+    }
+  }, []));
+
   // Calculate which pallets to show in the carousel
   const getVisiblePallets = () => {
     const currentIndex = MIGRATION_PALLETS.findIndex(pallet => 
@@ -153,7 +169,7 @@ const MigrationStatus: React.FC = () => {
   };
 
   const visiblePallets = getVisiblePallets();
-  const progressPercentage = completedPallets.length / MIGRATION_PALLETS.length * 100;
+  const progressPercentage = Math.min(100, (totalItemsProcessed / ESTIMATED_TOTAL_ITEMS) * 100);
 
   // Get XCM status based on error count
   const getXcmStatus = () => {
