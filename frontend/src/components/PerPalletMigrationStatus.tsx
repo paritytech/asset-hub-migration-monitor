@@ -59,11 +59,11 @@ const PalletTimer: React.FC<{
     return <span className="completed-time">{formatDuration(totalDuration)}</span>;
   }
 
-  if (timeInPallet) {
-    return <span className="active-time">{formatDuration(timeInPallet)}</span>;
-  }
+  // Calculate elapsed time from start time to current time
+  const startTimeMs = new Date(startTime).getTime();
+  const elapsedTime = currentTime - startTimeMs;
 
-  return <span>-</span>;
+  return <span className="active-time">{formatDuration(elapsedTime)}</span>;
 };
 
 const PerPalletMigrationStatus: React.FC = () => {
