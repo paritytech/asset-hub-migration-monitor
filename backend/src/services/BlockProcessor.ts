@@ -578,6 +578,18 @@ export class BlockProcessor {
       const palletMigrationCache = PalletMigrationCache.getInstance();
       palletMigrationCache.addBatchData(targetPallet, itemsProcessed, itemsFailed);
 
+      // Emit alert if there are failed items
+      if (itemsFailed > 0) {
+        eventService.emit('migrationAlert', {
+          blockNumber: item.blockNumber,
+          palletName: targetPallet,
+          itemsProcessed,
+          itemsFailed,
+          stageName: currentStageName,
+          stageId: currentStage.id,
+        });
+      }
+
       Log.chainEvent({
         chain: 'asset-hub',
         eventType: 'BatchProcessed',
