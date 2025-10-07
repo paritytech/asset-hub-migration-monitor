@@ -52,7 +52,7 @@ export class BlockProcessor {
   private lastBlockNumber: Map<string, number> = new Map();
   private previousDmpQueueSize: number = 0;
   private previousRcBalanceMigration: { kept: string; migrated: string } | null = null;
-  private currentMode: ProcessingMode = ProcessingMode.DETECTION;
+  private currentMode: ProcessingMode = ProcessingMode.FULL;
   private migrationStartBlockNumber?: number;
   private rcPriorityConfigQueried: boolean = false;
   private ahPriorityConfigQueried: boolean = false;
@@ -67,7 +67,7 @@ export class BlockProcessor {
     // Initialize last block numbers to 0
     this.lastBlockNumber.set('relay-chain', 0);
     this.lastBlockNumber.set('asset-hub', 0);
-    this.currentMode = ProcessingMode.DETECTION;
+    this.currentMode = ProcessingMode.FULL;
     this.rcPriorityConfigQueried = false;
     this.ahPriorityConfigQueried = false;
   }
