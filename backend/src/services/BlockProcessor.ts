@@ -19,6 +19,7 @@ import {
   xcmMessageCounters,
   dmpQueueEvents,
   umpQueueEvents,
+  balanceVerification,
 } from '../db/schema';
 import { Log } from '../logging/Log';
 import { getCurrentStageForPallet, getPalletFromStage, normalizeEventPalletName } from '../util/stageToPalletMapping';
@@ -1123,10 +1124,33 @@ export class BlockProcessor {
         this.previousRcBalanceMigration.kept !== kept ||
         this.previousRcBalanceMigration.migrated !== migrated
       ) {
+        // Save to database - upsert both kept and migrated values
+        const timestamp = new Date(item.timestamp!);
+
+        // Delete existing entries for this chain and insert new ones
+        await db.delete(balanceVerification)
+          .where(eq(balanceVerification.chain, 'relay-chain'));
+
+        await db.insert(balanceVerification)
+          .values([
+            {
+              chain: 'relay-chain',
+              balanceType: 'kept',
+              balance: kept,
+              lastUpdated: timestamp,
+            },
+            {
+              chain: 'relay-chain',
+              balanceType: 'migrated',
+              balance: migrated,
+              lastUpdated: timestamp,
+            }
+          ]);
+
         eventService.emit('rcBalanceMigration', {
           kept: kept.toString(),
           migrated: migrated.toString(),
-          timestamp: new Date(item.timestamp!).toISOString(),
+          timestamp: timestamp.toISOString(),
         });
 
         Log.service({
@@ -1162,10 +1186,33 @@ export class BlockProcessor {
         this.ahPriorityConfigQueried = true;
       }
 
+      // Save to database
+      const timestamp = new Date(item.timestamp!);
+
+      // Delete existing entries for this chain and insert new ones
+      await db.delete(balanceVerification)
+        .where(eq(balanceVerification.chain, 'asset-hub'));
+
+      await db.insert(balanceVerification)
+        .values([
+          {
+            chain: 'asset-hub',
+            balanceType: 'checkingAccount',
+            balance: checkingAccountBalance,
+            lastUpdated: timestamp,
+          },
+          {
+            chain: 'asset-hub',
+            balanceType: 'totalIssuance',
+            balance: totalIssuanceBalance,
+            lastUpdated: timestamp,
+          }
+        ]);
+
       eventService.emit('ahBalancesBefore', {
         checkingAccount: checkingAccountBalance,
         totalIssuance: totalIssuanceBalance,
-        timestamp: new Date(item.timestamp!).toISOString(),
+        timestamp: timestamp.toISOString(),
       });
 
       Log.service({

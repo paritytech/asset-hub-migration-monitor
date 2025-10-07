@@ -72,8 +72,8 @@ const LiveTimer: React.FC<{ lastUpdate: Date | null; chain: string; dotColor: st
   );
 };
 
-const ESTIMATED_TOTAL_ITEMS = 120000;
-// const ESTIMATED_TOTAL_ITEMS = 848345; // Kusama
+// const ESTIMATED_TOTAL_ITEMS = 120000;
+const ESTIMATED_TOTAL_ITEMS = 858345; // Kusama
 
 const MigrationStatus: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<MigrationStage | null>(null);
@@ -249,9 +249,6 @@ const MigrationStatus: React.FC = () => {
         <div className="progress-header">
           <span className="progress-label">Overall Progress</span>
           <span className="progress-value">{Math.round(progressPercentage)}%</span>
-        </div>
-        <div className="progress-explanation">
-          <span className="explanation-text">(Percentage increases as migration stages complete)</span>
         </div>
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progressPercentage}%` }}></div>

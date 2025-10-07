@@ -59,11 +59,11 @@ const PalletTimer: React.FC<{
     return <span className="completed-time">{formatDuration(totalDuration)}</span>;
   }
 
-  if (timeInPallet) {
-    return <span className="active-time">{formatDuration(timeInPallet)}</span>;
-  }
+  // Calculate elapsed time from start time to current time
+  const startTimeMs = new Date(startTime).getTime();
+  const elapsedTime = currentTime - startTimeMs;
 
-  return <span>-</span>;
+  return <span className="active-time">{formatDuration(elapsedTime)}</span>;
 };
 
 const PerPalletMigrationStatus: React.FC = () => {
@@ -127,6 +127,22 @@ const PerPalletMigrationStatus: React.FC = () => {
           palletInitStartedAt: data.palletInitStartedAt,
           lastUpdated: Date.now(),
         });
+
+        // Mark all pallets before the current active one as completed
+        const currentPalletIndex = MIGRATION_PALLETS.indexOf(data.palletName);
+        if (currentPalletIndex > 0 && !data.isPalletCompleted) {
+          for (let i = 0; i < currentPalletIndex; i++) {
+            const previousPallet = MIGRATION_PALLETS[i];
+            const previousStatus = newStatuses.get(previousPallet);
+            if (previousStatus && previousStatus.status !== 'completed') {
+              newStatuses.set(previousPallet, {
+                ...previousStatus,
+                status: 'completed',
+                isCompleted: true,
+              });
+            }
+          }
+        }
 
         return newStatuses;
       });
