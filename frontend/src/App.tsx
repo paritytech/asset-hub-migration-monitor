@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import MigrationStatus from './components/MigrationStatus';
 import PerPalletMigrationStatus from './components/PerPalletMigrationStatus';
 import XcmMessageMetrics from './components/XcmMessageMetrics';
@@ -15,9 +15,19 @@ import polkadotLogo from './assets/Polkadot_Token_Pink.png';
 function App() {
   const [rcBlockNumber, setRcBlockNumber] = useState<number | null>(null);
   const [ahBlockNumber, setAhBlockNumber] = useState<number | null>(null);
-  const [showStatsPage, setShowStatsPage] = useState<boolean>(false);
+  const [currentRoute, setCurrentRoute] = useState<string>(window.location.hash || '#/');
 
   const { backendUrl, setBackendUrl, isConnected } = useBackendUrl();
+
+  // Handle hash change for routing
+  useEffect(() => {
+    const handleHashChange = () => {
+      setCurrentRoute(window.location.hash || '#/');
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const handleEvent = useCallback((eventType: EventType, data: any) => {
     if (eventType === 'rcHead' && data.blockNumber) {
@@ -34,15 +44,15 @@ function App() {
   }, [setBackendUrl]);
 
   const handleNavigateToStats = useCallback(() => {
-    setShowStatsPage(true);
+    window.location.hash = '#/kusama';
   }, []);
 
   const handleNavigateBack = useCallback(() => {
-    setShowStatsPage(false);
+    window.location.hash = '#/';
   }, []);
 
-  // Render stats page
-  if (showStatsPage) {
+  // Render stats page for /#/kusama route
+  if (currentRoute === '#/kusama') {
     return (
       <div className="app">
         <KusamaMigrationStats onBack={handleNavigateBack} />

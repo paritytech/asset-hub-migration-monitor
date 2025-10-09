@@ -72,8 +72,8 @@ const LiveTimer: React.FC<{ lastUpdate: Date | null; chain: string; dotColor: st
   );
 };
 
-const ESTIMATED_TOTAL_ITEMS = 140000;
-// const ESTIMATED_TOTAL_ITEMS = 858345; // Kusama
+// const ESTIMATED_TOTAL_ITEMS = 140000;
+const ESTIMATED_TOTAL_ITEMS = 842345; // Kusama
 
 const MigrationStatus: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<MigrationStage | null>(null);
