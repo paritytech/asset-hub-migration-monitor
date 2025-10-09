@@ -93,6 +93,7 @@ jobs:
           teleport_token: ${{ env.APP }}
           teleport_app_name: "argocd-stg"
           argocd_auth_token: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          argocd_auto_sync_disabled: "false"
   deploy-prod:
     name: Deploy Production
     runs-on: ubuntu-latest
@@ -117,3 +118,4 @@ jobs:
           teleport_token: ${{ env.APP }}
           teleport_app_name: "argocd-prod"
           argocd_auth_token: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          argocd_auto_sync_disabled: "false"
