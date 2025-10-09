@@ -9,6 +9,10 @@ const TEST_START_BLOCKS: Record<string, { relayChain: number; assetHub: number }
     relayChain: 7926842 - 5, 
     assetHub: 2593897 - 5,
   },
+  kusama: {
+    relayChain: 30423691 - 5, 
+    assetHub: 11150168 - 5,
+  }
 };
 
 export class MockFinalizedService {
@@ -19,7 +23,7 @@ export class MockFinalizedService {
   private rcCurrentBlock: number = 0;
   private ahCurrentBlock: number = 0;
   private readonly rcBlockInterval: number = 2000; // 6 seconds per block (Relay Chain)
-  private readonly ahBlockInterval: number = 4000; // 12 seconds per block (Asset Hub)
+  private readonly ahBlockInterval: number = 2200; // 12 seconds per block (Asset Hub)
 
   private constructor() {
     this.blockProcessor = BlockProcessor.getInstance();
