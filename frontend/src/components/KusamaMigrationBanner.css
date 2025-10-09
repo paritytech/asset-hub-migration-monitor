@@ -1,0 +1,99 @@
+.kusama-migration-banner {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(230, 0, 122, 0.3);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  padding: 20px 24px;
+  margin: 0;
+  box-shadow: 0 4px 12px rgba(230, 0, 122, 0.15);
+  transition: all 0.3s ease;
+}
+
+.kusama-migration-banner:hover {
+  border-color: rgba(230, 0, 122, 0.5);
+  box-shadow: 0 6px 16px rgba(230, 0, 122, 0.25);
+  transform: translateY(-2px);
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.banner-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.banner-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.banner-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(230, 0, 122, 0.1);
+  border: 1px solid rgba(230, 0, 122, 0.3);
+  border-radius: 8px;
+  color: #e6007a;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.banner-button:hover {
+  background: rgba(230, 0, 122, 0.2);
+  border-color: rgba(230, 0, 122, 0.5);
+  transform: translateX(4px);
+}
+
+.banner-button svg {
+  transition: transform 0.2s ease;
+}
+
+.banner-button:hover svg {
+  transform: translateX(4px);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .banner-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .banner-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .banner-title {
+    font-size: 16px;
+  }
+
+  .banner-subtitle {
+    font-size: 13px;
+  }
+}

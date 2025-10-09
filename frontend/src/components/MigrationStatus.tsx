@@ -72,8 +72,8 @@ const LiveTimer: React.FC<{ lastUpdate: Date | null; chain: string; dotColor: st
   );
 };
 
-// const ESTIMATED_TOTAL_ITEMS = 120000;
-const ESTIMATED_TOTAL_ITEMS = 858345; // Kusama
+const ESTIMATED_TOTAL_ITEMS = 140000;
+// const ESTIMATED_TOTAL_ITEMS = 858345; // Kusama
 
 const MigrationStatus: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<MigrationStage | null>(null);
@@ -169,7 +169,9 @@ const MigrationStatus: React.FC = () => {
   };
 
   const visiblePallets = getVisiblePallets();
-  const progressPercentage = Math.min(100, (totalItemsProcessed / ESTIMATED_TOTAL_ITEMS) * 100);
+  const progressPercentage = currentStage?.stage === 'MigrationDone'
+    ? 100
+    : Math.min(100, (totalItemsProcessed / ESTIMATED_TOTAL_ITEMS) * 100);
 
   // Get XCM status based on error count
   const getXcmStatus = () => {

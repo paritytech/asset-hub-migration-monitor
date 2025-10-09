@@ -5,6 +5,8 @@ import XcmMessageMetrics from './components/XcmMessageMetrics';
 import BalanceVerification from './components/BalanceVerification';
 import AlertsCard from './components/AlertsCard';
 import BackendUrlInput from './components/BackendUrlInput';
+import KusamaMigrationBanner from './components/KusamaMigrationBanner';
+import KusamaMigrationStats from './components/KusamaMigrationStats';
 import { useEventSource, useBackendUrl } from './hooks/useEventSource';
 import type { EventType } from './hooks/useEventSource';
 import './App.css';
@@ -13,6 +15,7 @@ import polkadotLogo from './assets/Polkadot_Token_Pink.png';
 function App() {
   const [rcBlockNumber, setRcBlockNumber] = useState<number | null>(null);
   const [ahBlockNumber, setAhBlockNumber] = useState<number | null>(null);
+  const [showStatsPage, setShowStatsPage] = useState<boolean>(false);
 
   const { backendUrl, setBackendUrl, isConnected } = useBackendUrl();
 
@@ -30,8 +33,27 @@ function App() {
     setBackendUrl(url);
   }, [setBackendUrl]);
 
+  const handleNavigateToStats = useCallback(() => {
+    setShowStatsPage(true);
+  }, []);
+
+  const handleNavigateBack = useCallback(() => {
+    setShowStatsPage(false);
+  }, []);
+
+  // Render stats page
+  if (showStatsPage) {
+    return (
+      <div className="app">
+        <KusamaMigrationStats onBack={handleNavigateBack} />
+      </div>
+    );
+  }
+
+  // Render main dashboard
   return (
     <div className="app">
+      <KusamaMigrationBanner onNavigate={handleNavigateToStats} />
       <header>
         <div className="logo">
           <img src={polkadotLogo} alt="Polkadot Logo" />

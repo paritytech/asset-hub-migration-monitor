@@ -1,0 +1,367 @@
+.kusama-stats-page {
+  padding: 24px;
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  background: #0f0f23;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.stats-header {
+  margin-bottom: 32px;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(230, 0, 122, 0.1);
+  border: 1px solid rgba(230, 0, 122, 0.3);
+  border-radius: 8px;
+  color: #e6007a;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.back-button:hover {
+  background: rgba(230, 0, 122, 0.2);
+  border-color: rgba(230, 0, 122, 0.5);
+  transform: translateX(-4px);
+}
+
+.stats-title {
+  font-size: 32px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.stats-subtitle {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+.stats-section {
+  background: rgba(26, 26, 46, 0.6);
+  border: 1px solid rgba(230, 0, 122, 0.2);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(230, 0, 122, 0.2);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: rgba(15, 15, 35, 0.6);
+  border: 1px solid rgba(230, 0, 122, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.stat-card:hover {
+  background: rgba(15, 15, 35, 0.8);
+  border-color: rgba(230, 0, 122, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(230, 0, 122, 0.15);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.stat-success {
+  color: #10b981;
+}
+
+/* XCM Stats Container */
+.xcm-stats-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.xcm-column {
+  background: rgba(15, 15, 35, 0.6);
+  border: 1px solid rgba(230, 0, 122, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.xcm-column-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e6007a;
+  margin: 0 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(230, 0, 122, 0.2);
+}
+
+/* Pallet Stats Table */
+.pallet-stats-table {
+  overflow-x: auto;
+  background: rgba(15, 15, 35, 0.4);
+  border-radius: 8px;
+  border: 1px solid rgba(230, 0, 122, 0.2);
+}
+
+.pallet-stats-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pallet-stats-table thead {
+  background: rgba(230, 0, 122, 0.1);
+}
+
+.pallet-stats-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6007a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid rgba(230, 0, 122, 0.3);
+}
+
+.pallet-stats-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(230, 0, 122, 0.1);
+}
+
+.pallet-stats-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.pallet-stats-table tbody tr:hover {
+  background: rgba(230, 0, 122, 0.05);
+}
+
+.pallet-name {
+  font-weight: 500;
+  color: #ffffff;
+}
+
+/* Mobile responsive */
+@media (max-width: 1024px) {
+  .xcm-stats-container {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .kusama-stats-page {
+    padding: 8px;
+    max-width: 100vw;
+    width: 100vw;
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  .stats-header {
+    margin-bottom: 16px;
+    padding: 0 4px;
+  }
+
+  .back-button {
+    padding: 8px 16px;
+    font-size: 13px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stats-title {
+    font-size: 20px;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .stats-subtitle {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .stats-section {
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+  }
+
+  .section-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    margin-bottom: 4px;
+    word-break: break-word;
+  }
+
+  .stat-value {
+    font-size: 16px;
+    word-break: break-word;
+  }
+
+  .xcm-stats-container {
+    gap: 12px;
+  }
+
+  .xcm-column {
+    padding: 12px;
+  }
+
+  .xcm-column-title {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  /* Table mobile optimization */
+  .pallet-stats-table {
+    font-size: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  .pallet-stats-table table {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .pallet-stats-table th {
+    padding: 8px 6px;
+    font-size: 10px;
+    position: sticky;
+    top: 0;
+    background: rgba(230, 0, 122, 0.15);
+    z-index: 10;
+    white-space: nowrap;
+  }
+
+  .pallet-stats-table td {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+
+  .pallet-name {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* Improve scrolling on mobile */
+  .pallet-stats-table {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px) {
+  .kusama-stats-page {
+    padding: 6px;
+    max-width: 100vw;
+    width: 100vw;
+  }
+
+  .stats-header {
+    padding: 0 2px;
+  }
+
+  .stats-title {
+    font-size: 18px;
+  }
+
+  .stats-subtitle {
+    font-size: 11px;
+  }
+
+  .stats-section {
+    padding: 10px;
+  }
+
+  .section-title {
+    font-size: 15px;
+  }
+
+  .stat-card {
+    padding: 10px;
+  }
+
+  .stat-value {
+    font-size: 15px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  /* Make table more compact on very small screens */
+  .pallet-stats-table th,
+  .pallet-stats-table td {
+    padding: 6px 4px;
+  }
+
+  .pallet-stats-table th {
+    font-size: 9px;
+  }
+
+  .pallet-stats-table td {
+    font-size: 11px;
+  }
+
+  .pallet-name {
+    font-size: 11px;
+  }
+}

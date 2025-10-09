@@ -95,51 +95,75 @@ const PerPalletMigrationStatus: React.FC = () => {
 
   // Subscribe to rcStageUpdate events
   const handleStageUpdate = useCallback((eventType: string, data: any) => {
-    if (eventType === 'rcStageUpdate' && data.palletName) {
+    if (eventType === 'rcStageUpdate') {
       setPalletStatuses(prev => {
         const newStatuses = new Map(prev);
-        const existing = newStatuses.get(data.palletName) || {
-          palletName: data.palletName,
-          status: 'pending',
-          currentStage: null,
-          timeInPallet: null,
-          totalDuration: null,
-          isCompleted: false,
-          palletInitStartedAt: null,
-          lastUpdated: Date.now(),
-        };
 
-        // Determine status based on completion and current stage
-        let status: 'pending' | 'active' | 'completed' = 'pending';
-        if (data.isPalletCompleted) {
-          status = 'completed';
-        } else if (data.palletInitStartedAt) {
-          status = 'active';
+        // If migration is done, mark all pallets as completed
+        if (data.stage === 'MigrationDone') {
+          MIGRATION_PALLETS.forEach(pallet => {
+            const existing = newStatuses.get(pallet);
+            newStatuses.set(pallet, {
+              ...(existing || {
+                palletName: pallet,
+                currentStage: null,
+                timeInPallet: null,
+                totalDuration: null,
+                palletInitStartedAt: null,
+                lastUpdated: Date.now(),
+              }),
+              status: 'completed',
+              isCompleted: true,
+            });
+          });
+          return newStatuses;
         }
 
-        newStatuses.set(data.palletName, {
-          ...existing,
-          status,
-          currentStage: data.currentPalletStage || data.stage,
-          timeInPallet: data.timeInPallet,
-          totalDuration: data.palletTotalDuration,
-          isCompleted: data.isPalletCompleted,
-          palletInitStartedAt: data.palletInitStartedAt,
-          lastUpdated: Date.now(),
-        });
+        // Handle normal pallet updates
+        if (data.palletName) {
+          const existing = newStatuses.get(data.palletName) || {
+            palletName: data.palletName,
+            status: 'pending',
+            currentStage: null,
+            timeInPallet: null,
+            totalDuration: null,
+            isCompleted: false,
+            palletInitStartedAt: null,
+            lastUpdated: Date.now(),
+          };
 
-        // Mark all pallets before the current active one as completed
-        const currentPalletIndex = MIGRATION_PALLETS.indexOf(data.palletName);
-        if (currentPalletIndex > 0 && !data.isPalletCompleted) {
-          for (let i = 0; i < currentPalletIndex; i++) {
-            const previousPallet = MIGRATION_PALLETS[i];
-            const previousStatus = newStatuses.get(previousPallet);
-            if (previousStatus && previousStatus.status !== 'completed') {
-              newStatuses.set(previousPallet, {
-                ...previousStatus,
-                status: 'completed',
-                isCompleted: true,
-              });
+          // Determine status based on completion and current stage
+          let status: 'pending' | 'active' | 'completed' = 'pending';
+          if (data.isPalletCompleted) {
+            status = 'completed';
+          } else if (data.palletInitStartedAt) {
+            status = 'active';
+          }
+
+          newStatuses.set(data.palletName, {
+            ...existing,
+            status,
+            currentStage: data.currentPalletStage || data.stage,
+            timeInPallet: data.timeInPallet,
+            totalDuration: data.palletTotalDuration,
+            isCompleted: data.isPalletCompleted,
+            palletInitStartedAt: data.palletInitStartedAt,
+            lastUpdated: Date.now(),
+          });
+
+          // Mark all pallets before the current active one as completed
+          const currentPalletIndex = MIGRATION_PALLETS.indexOf(data.palletName);
+          if (currentPalletIndex > 0 && !data.isPalletCompleted) {
+            for (let i = 0; i < currentPalletIndex; i++) {
+              const previousPallet = MIGRATION_PALLETS[i];
+              const previousStatus = newStatuses.get(previousPallet);
+              if (previousStatus && previousStatus.status !== 'completed') {
+                newStatuses.set(previousPallet, {
+                  ...previousStatus,
+                  status: 'completed',
+                  isCompleted: true,
+                });
+              }
             }
           }
         }
