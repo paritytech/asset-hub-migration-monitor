@@ -49,6 +49,19 @@ const BalanceVerification: React.FC = () => {
     }
   }, []));
 
+  // Subscribe to pallet migration summary for initial state
+  useEventSource(['palletMigrationSummary'], useCallback((eventType: EventType, data: any) => {
+    if (eventType === 'palletMigrationSummary' && data.pallets) {
+      const accountsPallet = data.pallets.find((p: any) => p.palletName === 'Accounts');
+      if (accountsPallet) {
+        setAccountMigration({
+          totalAccounts: accountsPallet.totalItemsProcessed || 0,
+          timestamp: accountsPallet.lastUpdated,
+        });
+      }
+    }
+  }, []));
+
   // Format balance for display (assumes balance is in planck, convert to KSM)
   const formatBalance = (balance: string | null): string => {
     if (!balance) return '-';
