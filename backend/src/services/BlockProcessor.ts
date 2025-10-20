@@ -955,6 +955,16 @@ export class BlockProcessor {
       const palletName = getPalletFromStage(currentStage);
       const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
+      // Extract endAt block number for WarmUp and CoolOff stages
+      let warmUpEndBlock: number | null = null;
+      let coolOffEndBlock: number | null = null;
+
+      if (migrationStage.isWarmUp) {
+        warmUpEndBlock = migrationStage.asWarmUp.endAt.toNumber();
+      } else if (migrationStage.isCoolOff) {
+        coolOffEndBlock = migrationStage.asCoolOff.endAt.toNumber();
+      }
+
       // Emit event on every block to update timeInPallet
       eventService.emit('rcStageUpdate', {
         stage: currentStage,
@@ -965,6 +975,8 @@ export class BlockProcessor {
         scheduledBlockNumber: migrationStage.isScheduled
           ? migrationStage.asScheduled.start.toNumber()
           : null,
+        warmUpEndBlock,
+        coolOffEndBlock,
         palletInitStartedAt: palletInfo?.initStartedAt || null,
         timeInPallet: palletInfo?.timeInPallet || null,
         isNewStage,
@@ -985,6 +997,8 @@ export class BlockProcessor {
           scheduledBlockNumber: migrationStage.isScheduled
             ? migrationStage.asScheduled.start.toNumber()
             : null,
+          warmUpEndBlock,
+          coolOffEndBlock,
         },
       });
     } catch (error) {

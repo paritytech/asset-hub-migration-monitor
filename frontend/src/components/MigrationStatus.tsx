@@ -10,6 +10,8 @@ interface MigrationStage {
   blockHash: string;
   timestamp: string;
   scheduledBlockNumber: number | null;
+  warmUpEndBlock: number | null;
+  coolOffEndBlock: number | null;
 }
 
 // LiveTimer component for showing time since last update
@@ -234,13 +236,17 @@ const MigrationStatus: React.FC = () => {
           {currentStage ? currentStage.stage : 'Loading...'}
         </div>
         <div className="stage-description">
-          {currentStage 
+          {currentStage
             ? currentStage.stage === 'MigrationDone'
               ? 'Migration completed successfully! All pallets have been migrated.'
               : currentStage.stage === 'Pending'
               ? 'Currently Pending'
               : currentStage.stage === 'Scheduled' && currentStage.scheduledBlockNumber
               ? `Scheduled at block ${currentStage.scheduledBlockNumber}`
+              : currentStage.stage === 'WarmUp' && currentStage.warmUpEndBlock
+              ? `WarmUp period ends at block #${currentStage.warmUpEndBlock.toLocaleString()}`
+              : currentStage.stage === 'CoolOff' && currentStage.coolOffEndBlock
+              ? `CoolOff period ends at block #${currentStage.coolOffEndBlock.toLocaleString()}`
               : `Currently migrating ${currentStage.stage}`
             : 'Waiting for migration status updates'
           }

@@ -152,6 +152,20 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         const timeInStageCache = TimeInStageCache.getInstance();
         const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
+        // Extract endAt from details if stage is WarmUp or CoolOff
+        let warmUpEndBlock: number | null = null;
+        let coolOffEndBlock: number | null = null;
+
+        if (rcStage.details) {
+          const details = JSON.parse(rcStage.details);
+          if (details.warmUp?.endAt) {
+            warmUpEndBlock = details.warmUp.endAt;
+          }
+          if (details.coolOff?.endAt) {
+            coolOffEndBlock = details.coolOff.endAt;
+          }
+        }
+
         sendEvent('rcStageUpdate', {
           stage: rcStage.stage,
           details: rcStage.details ? JSON.parse(rcStage.details) : null,
@@ -160,6 +174,8 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
           palletInitStartedAt: palletInfo?.initStartedAt || null,
           timeInPallet: palletInfo?.timeInPallet || null,
           scheduledBlockNumber: rcStage.scheduledBlockNumber || null,
+          warmUpEndBlock,
+          coolOffEndBlock,
           isNewStage: false, // This is initial state, so not a new stage
           isPalletCompleted: palletInfo?.isCompleted || false,
           palletTotalDuration: palletInfo?.totalDuration || null,
