@@ -48,8 +48,9 @@ export interface PalletRcMigratorQueuePriority extends Enum {
   readonly type: 'Config' | 'OverrideConfig' | 'Disabled';
 }
 
-/** @name PalletRcMigratorMigrationStage (503) */
- export interface PalletRcMigratorMigrationStage extends Enum {
+
+/** @name PalletRcMigratorMigrationStage (466) */
+export interface PalletRcMigratorMigrationStage extends Enum {
     readonly isPending: boolean;
     readonly isMigrationPaused: boolean;
     readonly isScheduled: boolean;
@@ -191,22 +192,10 @@ export interface PalletRcMigratorQueuePriority extends Enum {
       readonly lastKey: Option<PalletRcMigratorTreasuryTreasuryStage>;
     } & Struct;
     readonly isTreasuryMigrationDone: boolean;
-    readonly isRecoveryMigrationInit: boolean;
-    readonly isRecoveryMigrationOngoing: boolean;
-    readonly asRecoveryMigrationOngoing: {
-      readonly lastKey: Option<PalletRcMigratorRecoveryRecoveryStage>;
-    } & Struct;
-    readonly isRecoveryMigrationDone: boolean;
-    readonly isSocietyMigrationInit: boolean;
-    readonly isSocietyMigrationOngoing: boolean;
-    readonly asSocietyMigrationOngoing: {
-      readonly lastKey: Option<PalletRcMigratorSocietySocietyStage>;
-    } & Struct;
-    readonly isSocietyMigrationDone: boolean;
     readonly isStakingMigrationInit: boolean;
     readonly isStakingMigrationOngoing: boolean;
     readonly asStakingMigrationOngoing: {
-      readonly nextKey: Option<PalletRcMigratorStakingStakingStage>;
+      readonly nextKey: Option<PalletRcMigratorStakingStakingImplStakingStage>;
     } & Struct;
     readonly isStakingMigrationDone: boolean;
     readonly isCoolOff: boolean;
@@ -215,7 +204,52 @@ export interface PalletRcMigratorQueuePriority extends Enum {
     } & Struct;
     readonly isSignalMigrationFinish: boolean;
     readonly isMigrationDone: boolean;
-    readonly type: 'Pending' | 'MigrationPaused' | 'Scheduled' | 'WaitingForAh' | 'WarmUp' | 'Starting' | 'PureProxyCandidatesMigrationInit' | 'AccountsMigrationInit' | 'AccountsMigrationOngoing' | 'AccountsMigrationDone' | 'MultisigMigrationInit' | 'MultisigMigrationOngoing' | 'MultisigMigrationDone' | 'ClaimsMigrationInit' | 'ClaimsMigrationOngoing' | 'ClaimsMigrationDone' | 'ProxyMigrationInit' | 'ProxyMigrationProxies' | 'ProxyMigrationAnnouncements' | 'ProxyMigrationDone' | 'PreimageMigrationInit' | 'PreimageMigrationChunksOngoing' | 'PreimageMigrationChunksDone' | 'PreimageMigrationRequestStatusOngoing' | 'PreimageMigrationRequestStatusDone' | 'PreimageMigrationLegacyRequestStatusInit' | 'PreimageMigrationLegacyRequestStatusOngoing' | 'PreimageMigrationLegacyRequestStatusDone' | 'PreimageMigrationDone' | 'NomPoolsMigrationInit' | 'NomPoolsMigrationOngoing' | 'NomPoolsMigrationDone' | 'VestingMigrationInit' | 'VestingMigrationOngoing' | 'VestingMigrationDone' | 'DelegatedStakingMigrationInit' | 'DelegatedStakingMigrationOngoing' | 'DelegatedStakingMigrationDone' | 'IndicesMigrationInit' | 'IndicesMigrationOngoing' | 'IndicesMigrationDone' | 'ReferendaMigrationInit' | 'ReferendaMigrationOngoing' | 'ReferendaMigrationDone' | 'BagsListMigrationInit' | 'BagsListMigrationOngoing' | 'BagsListMigrationDone' | 'SchedulerMigrationInit' | 'SchedulerMigrationOngoing' | 'SchedulerAgendaMigrationOngoing' | 'SchedulerMigrationDone' | 'ConvictionVotingMigrationInit' | 'ConvictionVotingMigrationOngoing' | 'ConvictionVotingMigrationDone' | 'BountiesMigrationInit' | 'BountiesMigrationOngoing' | 'BountiesMigrationDone' | 'ChildBountiesMigrationInit' | 'ChildBountiesMigrationOngoing' | 'ChildBountiesMigrationDone' | 'AssetRateMigrationInit' | 'AssetRateMigrationOngoing' | 'AssetRateMigrationDone' | 'CrowdloanMigrationInit' | 'CrowdloanMigrationOngoing' | 'CrowdloanMigrationDone' | 'TreasuryMigrationInit' | 'TreasuryMigrationOngoing' | 'TreasuryMigrationDone' | 'RecoveryMigrationInit' | 'RecoveryMigrationOngoing' | 'RecoveryMigrationDone' | 'SocietyMigrationInit' | 'SocietyMigrationOngoing' | 'SocietyMigrationDone' | 'StakingMigrationInit' | 'StakingMigrationOngoing' | 'StakingMigrationDone' | 'CoolOff' | 'SignalMigrationFinish' | 'MigrationDone';
+    readonly type: 'Pending' | 'MigrationPaused' | 'Scheduled' | 'WaitingForAh' | 'WarmUp' | 'Starting' | 'PureProxyCandidatesMigrationInit' | 'AccountsMigrationInit' | 'AccountsMigrationOngoing' | 'AccountsMigrationDone' | 'MultisigMigrationInit' | 'MultisigMigrationOngoing' | 'MultisigMigrationDone' | 'ClaimsMigrationInit' | 'ClaimsMigrationOngoing' | 'ClaimsMigrationDone' | 'ProxyMigrationInit' | 'ProxyMigrationProxies' | 'ProxyMigrationAnnouncements' | 'ProxyMigrationDone' | 'PreimageMigrationInit' | 'PreimageMigrationChunksOngoing' | 'PreimageMigrationChunksDone' | 'PreimageMigrationRequestStatusOngoing' | 'PreimageMigrationRequestStatusDone' | 'PreimageMigrationLegacyRequestStatusInit' | 'PreimageMigrationLegacyRequestStatusOngoing' | 'PreimageMigrationLegacyRequestStatusDone' | 'PreimageMigrationDone' | 'NomPoolsMigrationInit' | 'NomPoolsMigrationOngoing' | 'NomPoolsMigrationDone' | 'VestingMigrationInit' | 'VestingMigrationOngoing' | 'VestingMigrationDone' | 'DelegatedStakingMigrationInit' | 'DelegatedStakingMigrationOngoing' | 'DelegatedStakingMigrationDone' | 'IndicesMigrationInit' | 'IndicesMigrationOngoing' | 'IndicesMigrationDone' | 'ReferendaMigrationInit' | 'ReferendaMigrationOngoing' | 'ReferendaMigrationDone' | 'BagsListMigrationInit' | 'BagsListMigrationOngoing' | 'BagsListMigrationDone' | 'SchedulerMigrationInit' | 'SchedulerMigrationOngoing' | 'SchedulerAgendaMigrationOngoing' | 'SchedulerMigrationDone' | 'ConvictionVotingMigrationInit' | 'ConvictionVotingMigrationOngoing' | 'ConvictionVotingMigrationDone' | 'BountiesMigrationInit' | 'BountiesMigrationOngoing' | 'BountiesMigrationDone' | 'ChildBountiesMigrationInit' | 'ChildBountiesMigrationOngoing' | 'ChildBountiesMigrationDone' | 'AssetRateMigrationInit' | 'AssetRateMigrationOngoing' | 'AssetRateMigrationDone' | 'CrowdloanMigrationInit' | 'CrowdloanMigrationOngoing' | 'CrowdloanMigrationDone' | 'TreasuryMigrationInit' | 'TreasuryMigrationOngoing' | 'TreasuryMigrationDone' | 'StakingMigrationInit' | 'StakingMigrationOngoing' | 'StakingMigrationDone' | 'CoolOff' | 'SignalMigrationFinish' | 'MigrationDone';
+  }
+
+  /** @name PalletRcMigratorStakingStakingImplStakingStage (501) */
+  interface PalletRcMigratorStakingStakingImplStakingStage extends Enum {
+    readonly isValues: boolean;
+    readonly isInvulnerables: boolean;
+    readonly isBonded: boolean;
+    readonly asBonded: Option<AccountId32>;
+    readonly isLedger: boolean;
+    readonly asLedger: Option<AccountId32>;
+    readonly isPayee: boolean;
+    readonly asPayee: Option<AccountId32>;
+    readonly isValidators: boolean;
+    readonly asValidators: Option<AccountId32>;
+    readonly isNominators: boolean;
+    readonly asNominators: Option<AccountId32>;
+    readonly isVirtualStakers: boolean;
+    readonly asVirtualStakers: Option<AccountId32>;
+    readonly isErasStakersOverview: boolean;
+    readonly asErasStakersOverview: Option<ITuple<[u32, AccountId32]>>;
+    readonly isErasStakersPaged: boolean;
+    readonly asErasStakersPaged: Option<ITuple<[u32, AccountId32, u32]>>;
+    readonly isClaimedRewards: boolean;
+    readonly asClaimedRewards: Option<ITuple<[u32, AccountId32]>>;
+    readonly isErasValidatorPrefs: boolean;
+    readonly asErasValidatorPrefs: Option<ITuple<[u32, AccountId32]>>;
+    readonly isErasValidatorReward: boolean;
+    readonly asErasValidatorReward: Option<u32>;
+    readonly isErasRewardPoints: boolean;
+    readonly asErasRewardPoints: Option<u32>;
+    readonly isErasTotalStake: boolean;
+    readonly asErasTotalStake: Option<u32>;
+    readonly isUnappliedSlashes: boolean;
+    readonly asUnappliedSlashes: Option<u32>;
+    readonly isBondedEras: boolean;
+    readonly isValidatorSlashInEra: boolean;
+    readonly asValidatorSlashInEra: Option<ITuple<[u32, AccountId32]>>;
+    readonly isNominatorSlashInEra: boolean;
+    readonly asNominatorSlashInEra: Option<ITuple<[u32, AccountId32]>>;
+    readonly isSlashingSpans: boolean;
+    readonly asSlashingSpans: Option<AccountId32>;
+    readonly isSpanSlash: boolean;
+    readonly asSpanSlash: Option<ITuple<[AccountId32, u32]>>;
+    readonly isFinished: boolean;
+    readonly type: 'Values' | 'Invulnerables' | 'Bonded' | 'Ledger' | 'Payee' | 'Validators' | 'Nominators' | 'VirtualStakers' | 'ErasStakersOverview' | 'ErasStakersPaged' | 'ClaimedRewards' | 'ErasValidatorPrefs' | 'ErasValidatorReward' | 'ErasRewardPoints' | 'ErasTotalStake' | 'UnappliedSlashes' | 'BondedEras' | 'ValidatorSlashInEra' | 'NominatorSlashInEra' | 'SlashingSpans' | 'SpanSlash' | 'Finished';
   }
 
 /** @name PalletRcMigratorChildBountiesChildBountiesStage (531) */
