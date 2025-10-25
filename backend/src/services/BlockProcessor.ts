@@ -10,6 +10,11 @@ type RcSystemEvent = RcSystemEvents[number];
 type AhSystemEvents = Awaited<ReturnType<AssetHubApi['query']['System']['Events']['getValue']>>;
 type AhSystemEvent = AhSystemEvents[number];
 
+// Extract specific event types from the event enums
+type AhEventEnum = AhSystemEvent['event'];
+type AhMigratorEvents = Extract<AhEventEnum, { type: 'AhMigrator' }>['value'];
+type BatchProcessedEvent = Extract<AhMigratorEvents, { type: 'BatchProcessed' }>['value'];
+
 import { eq, desc, and } from 'drizzle-orm';
 
 import { sql } from 'drizzle-orm';
@@ -526,12 +531,31 @@ export class BlockProcessor {
    * Asset Hub event handlers
    */
   private async handleAssetHubBatchProcessed(eventRecord: AhSystemEvent, item: QueueItem): Promise<void> {
-    let eventData: any;
+    let eventData: BatchProcessedEvent | undefined;
     try {
-      eventData = eventRecord.event.value.value as { pallet: string; items_processed: number; items_failed: number };
-      const palletName = eventData.pallet; // This is the pallet from the event.
-      const itemsProcessed = eventData.items_processed; // This is the items processed.
-      const itemsFailed = eventData.items_failed; // This is the items failed.
+      eventData = eventRecord.event.value.value as BatchProcessedEvent;
+      // In PAPI, pallet is an Enum with a 'type' property
+      const palletName = typeof eventData.pallet === 'string' ? eventData.pallet : eventData.pallet.type;
+
+      // PAPI returns count_good and count_bad (not items_processed/items_failed)
+      // These are returned as number type from PAPI
+      const itemsProcessed = eventData.count_good;
+      const itemsFailed = eventData.count_bad;
+
+      // Validate the numbers are finite
+      if (!Number.isFinite(itemsProcessed) || !Number.isFinite(itemsFailed)) {
+        Log.chainEvent({
+          chain: 'asset-hub',
+          eventType: 'BatchProcessed - invalid numbers',
+          details: {
+            palletName,
+            itemsProcessed,
+            itemsFailed,
+            rawEventData: eventData,
+          },
+        });
+        return;
+      }
 
       // Normalize the event pallet name to our internal pallet name
       const targetPallet = normalizeEventPalletName(palletName);

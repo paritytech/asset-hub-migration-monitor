@@ -23,7 +23,7 @@ export class MockFinalizedService {
   private rcCurrentBlock: number = 0;
   private ahCurrentBlock: number = 0;
   private readonly rcBlockInterval: number = 2000; // 6 seconds per block (Relay Chain)
-  private readonly ahBlockInterval: number = 2200; // 12 seconds per block (Asset Hub)
+  private readonly ahBlockInterval: number = 2300; // 12 seconds per block (Asset Hub)
 
   private constructor() {
     this.blockProcessor = BlockProcessor.getInstance();
