@@ -1,6 +1,4 @@
-import type { Header } from '@polkadot/types/interfaces';
-
-import { VoidFn } from '@polkadot/api/types';
+import type { Subscription } from 'rxjs';
 
 import { Log } from '../logging/Log';
 
@@ -11,8 +9,8 @@ import { eventService } from './eventService';
 export class FinalizedService {
   private static instance: FinalizedService;
   private blockProcessor: BlockProcessor;
-  private rcUnsubscribe: VoidFn | null = null;
-  private ahUnsubscribe: VoidFn | null = null;
+  private rcSubscription: Subscription | null = null;
+  private ahSubscription: Subscription | null = null;
 
   private constructor() {
     this.blockProcessor = BlockProcessor.getInstance();
@@ -28,14 +26,15 @@ export class FinalizedService {
   /**
    * Start both finalized head subscriptions
    */
-  public async start(): Promise<void> {
+  public start(): void {
     Log.service({
       service: 'Finalized Service',
       action: 'Starting finalized head subscriptions',
     });
 
     try {
-      await Promise.all([this.startRelayChainSubscription(), this.startAssetHubSubscription()]);
+      this.startRelayChainSubscription();
+      this.startAssetHubSubscription();
 
       Log.service({
         service: 'Finalized Service',
@@ -54,30 +53,39 @@ export class FinalizedService {
   /**
    * Start Relay Chain finalized head subscription
    */
-  private async startRelayChainSubscription(): Promise<void> {
+  private startRelayChainSubscription(): void {
     try {
-      const api = await AbstractApi.getInstance().getRelayChainApi();
+      const client = AbstractApi.getInstance().getRelayChainClient();
 
-      this.rcUnsubscribe = await api.rpc.chain.subscribeFinalizedHeads((header: Header) => {
-        const blockNumber = header.number.toNumber();
-        const blockHash = header.hash.toHex();
+      this.rcSubscription = client.finalizedBlock$.subscribe({
+        next: (blockInfo) => {
+          const blockNumber = blockInfo.number;
+          const blockHash = blockInfo.hash;
 
-        Log.chainEvent({
-          chain: 'relay-chain',
-          eventType: 'finalized_head',
-          blockNumber,
-          details: { blockHash },
-        });
+          Log.chainEvent({
+            chain: 'relay-chain',
+            eventType: 'finalized_head',
+            blockNumber,
+            details: { blockHash },
+          });
 
-        // Emit to frontend
-        eventService.emit('rcHead', {
-          blockNumber,
-          blockHash,
-          timestamp: new Date().toISOString(),
-        });
+          // Emit to frontend
+          eventService.emit('rcHead', {
+            blockNumber,
+            blockHash,
+            timestamp: new Date().toISOString(),
+          });
 
-        // Submit to BlockProcessor
-        this.blockProcessor.addBlock('relay-chain', blockNumber, blockHash);
+          // Submit to BlockProcessor
+          this.blockProcessor.addBlock('relay-chain', blockNumber, blockHash);
+        },
+        error: (error) => {
+          Log.service({
+            service: 'Finalized Service',
+            action: 'Relay Chain finalized head subscription error',
+            error: error as Error,
+          });
+        },
       });
 
       Log.service({
@@ -97,30 +105,39 @@ export class FinalizedService {
   /**
    * Start Asset Hub finalized head subscription
    */
-  private async startAssetHubSubscription(): Promise<void> {
+  private startAssetHubSubscription(): void {
     try {
-      const api = await AbstractApi.getInstance().getAssetHubApi();
+      const client = AbstractApi.getInstance().getAssetHubClient();
 
-      this.ahUnsubscribe = await api.rpc.chain.subscribeFinalizedHeads((header: Header) => {
-        const blockNumber = header.number.toNumber();
-        const blockHash = header.hash.toHex();
+      this.ahSubscription = client.finalizedBlock$.subscribe({
+        next: (blockInfo) => {
+          const blockNumber = blockInfo.number;
+          const blockHash = blockInfo.hash;
 
-        Log.chainEvent({
-          chain: 'asset-hub',
-          eventType: 'finalized_head',
-          blockNumber,
-          details: { blockHash },
-        });
+          Log.chainEvent({
+            chain: 'asset-hub',
+            eventType: 'finalized_head',
+            blockNumber,
+            details: { blockHash },
+          });
 
-        // Emit to frontend
-        eventService.emit('ahHead', {
-          blockNumber,
-          blockHash,
-          timestamp: new Date().toISOString(),
-        });
+          // Emit to frontend
+          eventService.emit('ahHead', {
+            blockNumber,
+            blockHash,
+            timestamp: new Date().toISOString(),
+          });
 
-        // Submit to BlockProcessor
-        this.blockProcessor.addBlock('asset-hub', blockNumber, blockHash);
+          // Submit to BlockProcessor
+          this.blockProcessor.addBlock('asset-hub', blockNumber, blockHash);
+        },
+        error: (error) => {
+          Log.service({
+            service: 'Finalized Service',
+            action: 'Asset Hub finalized head subscription error',
+            error: error as Error,
+          });
+        },
       });
 
       Log.service({
@@ -140,7 +157,7 @@ export class FinalizedService {
   /**
    * Stop all subscriptions and cleanup
    */
-  public async stop(): Promise<void> {
+  public stop(): void {
     Log.service({
       service: 'Finalized Service',
       action: 'Stopping finalized head subscriptions',
@@ -148,14 +165,14 @@ export class FinalizedService {
 
     try {
       // Unsubscribe from both chains
-      if (this.rcUnsubscribe) {
-        this.rcUnsubscribe();
-        this.rcUnsubscribe = null;
+      if (this.rcSubscription) {
+        this.rcSubscription.unsubscribe();
+        this.rcSubscription = null;
       }
 
-      if (this.ahUnsubscribe) {
-        this.ahUnsubscribe();
-        this.ahUnsubscribe = null;
+      if (this.ahSubscription) {
+        this.ahSubscription.unsubscribe();
+        this.ahSubscription = null;
       }
 
       Log.service({
@@ -177,8 +194,8 @@ export class FinalizedService {
    */
   public getStatus(): { rcActive: boolean; ahActive: boolean } {
     return {
-      rcActive: this.rcUnsubscribe !== null,
-      ahActive: this.ahUnsubscribe !== null,
+      rcActive: this.rcSubscription !== null && !this.rcSubscription.closed,
+      ahActive: this.ahSubscription !== null && !this.ahSubscription.closed,
     };
   }
 }
