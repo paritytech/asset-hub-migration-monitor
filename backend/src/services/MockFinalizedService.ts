@@ -67,7 +67,8 @@ export class MockFinalizedService {
     });
 
     try {
-      await Promise.all([this.startRelayChainProduction(), this.startAssetHubProduction()]);
+      this.startRelayChainProduction();
+      this.startAssetHubProduction();
 
       Log.service({
         service: 'Mock Finalized Service',
@@ -86,34 +87,33 @@ export class MockFinalizedService {
   /**
    * Start Relay Chain mock block production
    */
-  private async startRelayChainProduction(): Promise<void> {
+  private startRelayChainProduction(): void {
     const abstractApi = AbstractApi.getInstance();
-    const api = await abstractApi.getRelayChainApi();
+    const client = abstractApi.getRelayChainClient();
 
     this.rcIntervalId = setInterval(async () => {
       const blockNumber = this.rcCurrentBlock;
 
       try {
-        // Query actual block hash from the node
-        const blockHash = await api.rpc.chain.getBlockHash(blockNumber);
-        const blockHashHex = blockHash.toHex();
+        // Query actual block hash from the node using RPC
+        const blockHash = await client._request<string, [number]>('chain_getBlockHash', [blockNumber]);
 
         Log.chainEvent({
           chain: 'relay-chain',
           eventType: 'finalized_head (mock)',
           blockNumber,
-          details: { blockHash: blockHashHex },
+          details: { blockHash },
         });
 
         // Emit to frontend
         eventService.emit('rcHead', {
           blockNumber,
-          blockHash: blockHashHex,
+          blockHash,
           timestamp: new Date().toISOString(),
         });
 
         // Submit to BlockProcessor
-        this.blockProcessor.addBlock('relay-chain', blockNumber, blockHashHex);
+        this.blockProcessor.addBlock('relay-chain', blockNumber, blockHash);
 
         this.rcCurrentBlock++;
       } catch (error) {
@@ -136,34 +136,33 @@ export class MockFinalizedService {
   /**
    * Start Asset Hub mock block production
    */
-  private async startAssetHubProduction(): Promise<void> {
+  private startAssetHubProduction(): void {
     const abstractApi = AbstractApi.getInstance();
-    const api = await abstractApi.getAssetHubApi();
+    const client = abstractApi.getAssetHubClient();
 
     this.ahIntervalId = setInterval(async () => {
       const blockNumber = this.ahCurrentBlock;
 
       try {
-        // Query actual block hash from the node
-        const blockHash = await api.rpc.chain.getBlockHash(blockNumber);
-        const blockHashHex = blockHash.toHex();
+        // Query actual block hash from the node using RPC
+        const blockHash = await client._request<string, [number]>('chain_getBlockHash', [blockNumber]);
 
         Log.chainEvent({
           chain: 'asset-hub',
           eventType: 'finalized_head (mock)',
           blockNumber,
-          details: { blockHash: blockHashHex },
+          details: { blockHash },
         });
 
         // Emit to frontend
         eventService.emit('ahHead', {
           blockNumber,
-          blockHash: blockHashHex,
+          blockHash,
           timestamp: new Date().toISOString(),
         });
 
         // Submit to BlockProcessor
-        this.blockProcessor.addBlock('asset-hub', blockNumber, blockHashHex);
+        this.blockProcessor.addBlock('asset-hub', blockNumber, blockHash);
 
         this.ahCurrentBlock++;
       } catch (error) {
