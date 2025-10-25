@@ -8,6 +8,7 @@ COPY package.json ./
 COPY yarn.lock ./
 COPY .yarnrc.yml ./
 COPY .yarn ./
+COPY .papi ./.papi
 
 RUN yarn --immutable
 
