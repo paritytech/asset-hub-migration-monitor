@@ -8,7 +8,15 @@ COPY package.json ./
 COPY yarn.lock ./
 COPY .yarnrc.yml ./
 COPY .yarn ./
+COPY .papi ./.papi
 
+# Install dependencies first (needed for papi generate)
+RUN yarn install --immutable
+
+# Generate PAPI descriptors from metadata
+RUN yarn papi:generate
+
+# Verify dependencies are still correct after generation
 RUN yarn --immutable
 
 COPY tsconfig.json ./
