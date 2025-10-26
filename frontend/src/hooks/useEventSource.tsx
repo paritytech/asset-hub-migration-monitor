@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 
-export type EventType = 'rcHead' | 'ahHead' | 'rcXcmMessageCounter' | 'ahXcmMessageCounter' | 'rcStageUpdate' | 'ahStageUpdate' | 'dmpLatency' | 'dmpQueueEvent' | 'dmpMetrics' | 'umpLatency' | 'umpMetrics' | 'umpQueueEvent' | 'palletMigrationUpdate' | 'palletMigrationSummary' | 'rcBalanceMigration' | 'ahBalancesBefore' | 'accountMigration' | 'dmpMessageCounter' | 'umpMessageCounter' | 'dmpQueuePriority' | 'umpQueuePriority' | 'migrationAlert';
+export type EventType = 'rcHead' | 'ahHead' | 'rcXcmMessageCounter' | 'ahXcmMessageCounter' | 'rcStageUpdate' | 'ahStageUpdate' | 'dmpLatency' | 'dmpQueueEvent' | 'dmpMetrics' | 'umpLatency' | 'umpMetrics' | 'umpQueueEvent' | 'palletMigrationUpdate' | 'palletMigrationSummary' | 'rcBalanceMigration' | 'ahBalancesBefore' | 'accountMigration' | 'dmpMessageCounter' | 'umpMessageCounter' | 'dmpQueuePriority' | 'umpQueuePriority';
 
 interface EventSourceContextType {
   subscribe: (events: EventType[], callback: (eventType: EventType, data: any) => void) => () => void;
@@ -84,7 +84,7 @@ export const EventSourceProvider: React.FC<EventSourceProviderProps> = ({
       eventSourceRef.current.close();
     }
 
-    const allEventTypes: EventType[] = ['rcHead', 'ahHead', 'dmpMessageCounter', 'umpMessageCounter', 'rcStageUpdate', 'ahStageUpdate', 'dmpQueueEvent', 'umpQueueEvent', 'dmpQueuePriority', 'umpQueuePriority', 'rcBalanceMigration', 'ahBalancesBefore', 'palletMigrationUpdate', 'palletMigrationSummary', 'migrationAlert'];
+    const allEventTypes: EventType[] = ['rcHead', 'ahHead', 'dmpMessageCounter', 'umpMessageCounter', 'rcStageUpdate', 'ahStageUpdate', 'dmpQueueEvent', 'umpQueueEvent', 'dmpQueuePriority', 'umpQueuePriority', 'rcBalanceMigration', 'ahBalancesBefore', 'palletMigrationUpdate', 'palletMigrationSummary'];
     const apiUrl = url ? `${url}/api/updates` : '/api/updates';
     const es = new EventSource(`${apiUrl}?events=${allEventTypes.join(',')}`);
     
