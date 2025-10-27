@@ -108,7 +108,6 @@ export const queuePriorityConfigs = sqliteTable('queue_priority_configs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   queueType: text('queue_type').notNull().unique(), // 'ump' or 'dmp'
   priorityType: text('priority_type').notNull(), // 'Config', 'OverrideConfig', or 'Disabled'
-  overrideValues: text('override_values'), // JSON stringified [threshold, drop_threshold] for OverrideConfig, null otherwise
   lastUpdated: integer('last_updated', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date()),
