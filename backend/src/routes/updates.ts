@@ -151,18 +151,18 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         const timeInStageCache = TimeInStageCache.getInstance();
         const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
-        // Extract endAt from details if stage is WarmUp or CoolOff
+        // Extract end_at from details if stage is WarmUp or CoolOff
         let warmUpEndBlock: number | null = null;
         let coolOffEndBlock: number | null = null;
 
         if (rcStage.details) {
           const details = JSON.parse(rcStage.details);
-          // In PAPI, the migration stage is an Enum with .type and .value
-          if (details.type === 'WarmUp' && details.value?.endAt) {
-            warmUpEndBlock = details.value.endAt;
+          // In PAPI, the migration stage is an Enum with .type and .value, and uses snake_case
+          if (details.type === 'WarmUp' && details.value?.end_at) {
+            warmUpEndBlock = details.value.end_at;
           }
-          if (details.type === 'CoolOff' && details.value?.endAt) {
-            coolOffEndBlock = details.value.endAt;
+          if (details.type === 'CoolOff' && details.value?.end_at) {
+            coolOffEndBlock = details.value.end_at;
           }
         }
 
