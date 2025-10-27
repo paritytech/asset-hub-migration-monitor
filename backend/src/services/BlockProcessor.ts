@@ -18,6 +18,9 @@ type BatchProcessedEvent = Extract<AhMigratorEvents, { type: 'BatchProcessed' }>
 // Queue priority config types
 type QueuePriorityConfig = Awaited<ReturnType<RelayChainApi['query']['RcMigrator']['AhUmpQueuePriorityConfig']['getValue']>>;
 
+// Migration stage type
+type RcMigrationStage = Awaited<ReturnType<RelayChainApi['query']['RcMigrator']['RcMigrationStage']['getValue']>>;
+
 import { eq, desc, and } from 'drizzle-orm';
 
 import { sql } from 'drizzle-orm';
@@ -939,7 +942,7 @@ export class BlockProcessor {
   }
 
   private async handleRcMigrationStage(
-    migrationStage: any,
+    migrationStage: RcMigrationStage,
     item: QueueItem
   ) {
     const timeInStageCache = TimeInStageCache.getInstance();
@@ -947,7 +950,7 @@ export class BlockProcessor {
     try {
       const currentStage = migrationStage.type;
       const isScheduled = currentStage === 'Scheduled';
-      const scheduledBlockNumber = isScheduled ? (migrationStage.value as { start: number }).start : undefined;
+      const scheduledBlockNumber = isScheduled ? migrationStage.value.start : undefined;
 
       // Check if this is a new stage before inserting
       const isNewStage = await timeInStageCache.recordStageStart(currentStage);
@@ -970,7 +973,7 @@ export class BlockProcessor {
       if (this.isMigrationCompleted(currentStage)) {
         Log.service({
           service: 'Block Processor',
-          action: '🎉 MigrationDone stage detected - switching to completed mode',
+          action: 'MigrationDone stage detected - switching to completed mode',
           details: { stage: currentStage, blockNumber: item.blockNumber }
         });
         this.switchToCompletedMode();
@@ -988,6 +991,16 @@ export class BlockProcessor {
       const palletName = getPalletFromStage(currentStage);
       const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
+      // Extract end_at block number for WarmUp and CoolOff stages
+      let warmUpEndBlock: number | null = null;
+      let coolOffEndBlock: number | null = null;
+
+      if (currentStage === 'WarmUp') {
+        warmUpEndBlock = migrationStage.value.end_at;
+      } else if (currentStage === 'CoolOff') {
+        coolOffEndBlock = migrationStage.value.end_at;
+      }
+
       // Emit event on every block to update timeInPallet
       eventService.emit('rcStageUpdate', {
         stage: currentStage,
@@ -1002,6 +1015,8 @@ export class BlockProcessor {
         isPalletCompleted: palletInfo?.isCompleted || false,
         palletTotalDuration: palletInfo?.totalDuration || null,
         currentPalletStage: palletInfo?.currentStage || null,
+        warmUpEndBlock,
+        coolOffEndBlock,
       });
 
       Log.chainEvent({

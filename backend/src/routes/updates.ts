@@ -151,6 +151,21 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         const timeInStageCache = TimeInStageCache.getInstance();
         const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
+        // Extract end_at from details if stage is WarmUp or CoolOff
+        let warmUpEndBlock: number | null = null;
+        let coolOffEndBlock: number | null = null;
+
+        if (rcStage.details) {
+          const details = JSON.parse(rcStage.details);
+          // In PAPI, the migration stage is an Enum with .type and .value, and uses snake_case
+          if (details.type === 'WarmUp' && details.value?.end_at) {
+            warmUpEndBlock = details.value.end_at;
+          }
+          if (details.type === 'CoolOff' && details.value?.end_at) {
+            coolOffEndBlock = details.value.end_at;
+          }
+        }
+
         sendEvent('rcStageUpdate', {
           stage: rcStage.stage,
           details: rcStage.details ? JSON.parse(rcStage.details) : null,
@@ -159,6 +174,8 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
           palletInitStartedAt: palletInfo?.initStartedAt || null,
           timeInPallet: palletInfo?.timeInPallet || null,
           scheduledBlockNumber: rcStage.scheduledBlockNumber || null,
+          warmUpEndBlock,
+          coolOffEndBlock,
           isNewStage: false, // This is initial state, so not a new stage
           isPalletCompleted: palletInfo?.isCompleted || false,
           palletTotalDuration: palletInfo?.totalDuration || null,
