@@ -2,7 +2,7 @@ import { desc, eq, and } from 'drizzle-orm';
 import { Request, Response, RequestHandler } from 'express';
 
 import { db } from '../db';
-import { migrationStages, xcmMessageCounters, balanceVerification } from '../db/schema';
+import { migrationStages, xcmMessageCounters, balanceVerification, queuePriorityConfigs } from '../db/schema';
 import { Log } from '../logging/Log';
 import { PalletMigrationCache } from '../services/cache/PalletMigrationCache';
 import { TimeInStageCache } from '../services/cache/TimeInStageCache';
@@ -30,8 +30,7 @@ type EventType =
   | 'dmpQueuePriority'
   | 'umpQueuePriority'
   | 'rcBalanceMigration'
-  | 'ahBalancesBefore'
-  | 'migrationAlert';
+  | 'ahBalancesBefore';
 
 export const updatesHandler: RequestHandler = async (req: Request, res: Response) => {
   const requestedEvents = ((req.query.events as string) || '')
@@ -158,11 +157,12 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
 
         if (rcStage.details) {
           const details = JSON.parse(rcStage.details);
-          if (details.warmUp?.endAt) {
-            warmUpEndBlock = details.warmUp.endAt;
+          // In PAPI, the migration stage is an Enum with .type and .value
+          if (details.type === 'WarmUp' && details.value?.endAt) {
+            warmUpEndBlock = details.value.endAt;
           }
-          if (details.coolOff?.endAt) {
-            coolOffEndBlock = details.coolOff.endAt;
+          if (details.type === 'CoolOff' && details.value?.endAt) {
+            coolOffEndBlock = details.value.endAt;
           }
         }
 
@@ -245,6 +245,32 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
             timestamp: checkingAccount.lastUpdated.toISOString(),
           });
         }
+      }
+    }
+
+    // Handle UMP queue priority initial state
+    if (requestedEvents.includes('umpQueuePriority')) {
+      const umpPriority = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'ump'),
+      });
+      if (umpPriority) {
+        sendEvent('umpQueuePriority', {
+          type: umpPriority.priorityType,
+          timestamp: umpPriority.lastUpdated.toISOString(),
+        });
+      }
+    }
+
+    // Handle DMP queue priority initial state
+    if (requestedEvents.includes('dmpQueuePriority')) {
+      const dmpPriority = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'dmp'),
+      });
+      if (dmpPriority) {
+        sendEvent('dmpQueuePriority', {
+          type: dmpPriority.priorityType,
+          timestamp: dmpPriority.lastUpdated.toISOString(),
+        });
       }
     }
   } catch (error) {

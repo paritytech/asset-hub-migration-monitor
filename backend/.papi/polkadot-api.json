@@ -1,0 +1,18 @@
+{
+  "version": 0,
+  "descriptorPath": ".papi/descriptors",
+  "entries": {
+    "relayChain": {
+      "chain": "ksmcc3",
+      "metadata": ".papi/metadata/relayChain.scale",
+      "genesis": "0xb0a8d493285c2df73290dfb7e61f870f17b41801197a149ca93654499ea3dafe",
+      "codeHash": "0x9bfa95446bff3c013666fd4c421cb0d8ce16b2e905a6589b58981876abf471d9"
+    },
+    "assetHub": {
+      "chain": "ksmcc3_asset_hub",
+      "metadata": ".papi/metadata/assetHub.scale",
+      "genesis": "0x48239ef607d7928874027a43a67689209727dfb3d3dc5e5b03a39bdc2eda771a",
+      "codeHash": "0x5a0e93172b7d4f2030a3a31c2f1aff1e170a323373a48f7f2bc44328872616fc"
+    }
+  }
+}

@@ -1,12 +1,22 @@
-import type { PalletRcMigratorMigrationStage, PalletRcMigratorQueuePriority, PalletRcMigratorAccountsMigratedBalances, PalletAhMigratorBalancesBefore } from '../types/pjs';
-import type { ApiDecoration } from '@polkadot/api/types';
-import type { Vec, Bytes } from '@polkadot/types';
-import type { Event } from '@polkadot/types/interfaces';
-import type {
-  FrameSystemEventRecord,
-  PolkadotCorePrimitivesInboundDownwardMessage,
-} from '@polkadot/types/lookup';
-import { BN_ZERO } from '@polkadot/util';
+import type { TypedApi } from 'polkadot-api';
+import type { relayChain, assetHub } from '@polkadot-api/descriptors';
+import type { Binary } from '@polkadot-api/substrate-bindings';
+
+// Type aliases for PAPI
+type RelayChainApi = TypedApi<typeof relayChain>;
+type AssetHubApi = TypedApi<typeof assetHub>;
+type RcSystemEvents = Awaited<ReturnType<RelayChainApi['query']['System']['Events']['getValue']>>;
+type RcSystemEvent = RcSystemEvents[number];
+type AhSystemEvents = Awaited<ReturnType<AssetHubApi['query']['System']['Events']['getValue']>>;
+type AhSystemEvent = AhSystemEvents[number];
+
+// Extract specific event types from the event enums
+type AhEventEnum = AhSystemEvent['event'];
+type AhMigratorEvents = Extract<AhEventEnum, { type: 'AhMigrator' }>['value'];
+type BatchProcessedEvent = Extract<AhMigratorEvents, { type: 'BatchProcessed' }>['value'];
+
+// Queue priority config types
+type QueuePriorityConfig = Awaited<ReturnType<RelayChainApi['query']['RcMigrator']['AhUmpQueuePriorityConfig']['getValue']>>;
 
 import { eq, desc, and } from 'drizzle-orm';
 
@@ -20,6 +30,7 @@ import {
   dmpQueueEvents,
   umpQueueEvents,
   balanceVerification,
+  queuePriorityConfigs,
 } from '../db/schema';
 import { Log } from '../logging/Log';
 import { getCurrentStageForPallet, getPalletFromStage, normalizeEventPalletName } from '../util/stageToPalletMapping';
@@ -311,27 +322,30 @@ export class BlockProcessor {
     });
 
     try {
-      // Get the appropriate API instance
+      // Get the appropriate API and client instances
       const abstractApi = AbstractApi.getInstance();
       const api =
         item.chain === 'asset-hub'
-          ? await abstractApi.getAssetHubApi()
-          : await abstractApi.getRelayChainApi();
+          ? abstractApi.getAssetHubApi()
+          : abstractApi.getRelayChainApi();
+
+      const client =
+        item.chain === 'asset-hub'
+          ? abstractApi.getAssetHubClient()
+          : abstractApi.getRelayChainClient();
 
       let blockHash = item.blockHash;
       if (!blockHash) {
-        blockHash = (await api.rpc.chain.getBlockHash(item.blockNumber)).toHex();
+        blockHash = await client._request<string, [number]>('chain_getBlockHash', [item.blockNumber]);
       }
 
-      const apiAt = await api.at(blockHash);
-      // Query the on-chain timestamp at this block
-      const [timestampMoment, events] = await Promise.all([
-        apiAt.query.timestamp.now(),
-        apiAt.query.system.events(),
+      // Query the on-chain timestamp and events at this block
+      const [timestamp, events] = await Promise.all([
+        api.query.Timestamp.Now.getValue({ at: blockHash }),
+        api.query.System.Events.getValue({ at: blockHash }),
       ]);
 
-      const timestamp = timestampMoment.toNumber(); // Convert from Moment to number (milliseconds)
-      item.timestamp = timestamp;
+      item.timestamp = Number(timestamp);
 
       Log.service({
         service: 'Block Processor',
@@ -339,20 +353,20 @@ export class BlockProcessor {
         details: {
           chain: item.chain,
           blockNumber: item.blockNumber,
-          timestamp,
-          timestampDate: new Date(timestamp).toISOString(),
+          timestamp: item.timestamp,
+          timestampDate: new Date(item.timestamp!).toISOString(),
         },
       });
 
       // Initial stage check - only on Relay Chain, only once, only if no stages in DB
       if (item.chain === 'relay-chain' && !this.initialStageCheckDone) {
-        await this.performInitialStageCheck(apiAt, item);
+        await this.performInitialStageCheck(api as RelayChainApi, blockHash, item);
       }
 
       if (this.currentMode === ProcessingMode.DETECTION) {
         // Detection mode: only process relay chain for migration events
         if (item.chain === 'relay-chain') {
-          await this.processRelayChainDetectionOnly(item, events);
+          await this.processRelayChainDetectionOnly(item, events as RcSystemEvents);
         } else {
           // Skip Asset Hub processing in detection mode
           Log.service({
@@ -371,9 +385,9 @@ export class BlockProcessor {
         if (shouldProcess) {
           // Full processing: events, storage queries, database writes
           if (item.chain === 'asset-hub') {
-            await this.processAssetHubBlock(item, apiAt, events);
+            await this.processAssetHubBlock(item, api as AssetHubApi, blockHash, events as AhSystemEvents);
           } else {
-            await this.processRelayChainBlock(item, apiAt, events);
+            await this.processRelayChainBlock(item, api as RelayChainApi, blockHash, events as RcSystemEvents);
           }
         } else {
           // Lightweight processing: just track the block for gap detection
@@ -408,8 +422,9 @@ export class BlockProcessor {
    */
   private async processAssetHubBlock(
     item: QueueItem,
-    apiAt: ApiDecoration<'promise'>,
-    events: Vec<FrameSystemEventRecord>
+    api: AssetHubApi,
+    blockHash: string,
+    events: AhSystemEvents
   ): Promise<void> {
     Log.service({
       service: 'Block Processor',
@@ -422,30 +437,38 @@ export class BlockProcessor {
 
     try {
       // Query Asset Hub specific storage
-      await this.processAssetHubStorage(apiAt, item);
+      await this.processAssetHubStorage(api, blockHash, item);
 
       // Process Asset Hub specific events
-      for (const record of events) {
-        const { event } = record;
+      for (const eventRecord of events) {
+        const { event } = eventRecord;
 
         // Handle ahMigrator.BatchProcessed events
-        if (event.section === 'ahMigrator' && event.method === 'BatchProcessed') {
-          await this.handleAssetHubBatchProcessed(event, item);
+        if (event.type === 'AhMigrator') {
+          const ahEvent = event.value as any;
+          if (ahEvent.type === 'BatchProcessed') {
+            await this.handleAssetHubBatchProcessed(eventRecord, item);
+          }
+          // Handle ahMigrator.DmpQueuePrioritySet event
+          if (ahEvent.type === 'DmpQueuePriorityConfigSet') {
+            await this.handleDmpQueuePriorityChangedEvent(eventRecord, api, blockHash, item);
+          }
         }
 
         // Handle messageQueue.Processed events (DMP latency)
-        if (event.section === 'messageQueue' && event.method === 'Processed') {
-          await this.handleAssetHubMessageQueueProcessed(event, item);
+        if (event.type === 'MessageQueue') {
+          const mqEvent = event.value as any;
+          if (mqEvent.type === 'Processed') {
+            await this.handleAssetHubMessageQueueProcessed(eventRecord, item);
+          }
         }
 
         // Handle parachainSystem.UpwardMessageSent events (UMP)
-        if (event.section === 'parachainSystem' && event.method === 'UpwardMessageSent') {
-          await this.handleAssetHubUpwardMessageSent(event, item);
-        }
-
-        // Handle ahMigrator.DmpQueuePrioritySet event
-        if (event.section === 'ahMigrator' && event.method === 'DmpQueuePriorityConfigSet') {
-          await this.handleDmpQueuePriorityChangedEvent(event, apiAt, item);
+        if (event.type === 'ParachainSystem') {
+          const psEvent = event.value as any;
+          if (psEvent.type === 'UpwardMessageSent') {
+            await this.handleAssetHubUpwardMessageSent(eventRecord, item);
+          }
         }
       }
 
@@ -467,8 +490,9 @@ export class BlockProcessor {
    */
   private async processRelayChainBlock(
     item: QueueItem,
-    apiAt: ApiDecoration<'promise'>,
-    events: Vec<FrameSystemEventRecord>
+    api: RelayChainApi,
+    blockHash: string,
+    events: RcSystemEvents
   ): Promise<void> {
     Log.service({
       service: 'Block Processor',
@@ -481,20 +505,20 @@ export class BlockProcessor {
 
     try {
       // Query Relay Chain specific storage
-      await this.processRelayChainStorage(apiAt, item);
+      await this.processRelayChainStorage(api, blockHash, item);
 
       // Process Relay Chain specific events
-      for (const record of events) {
-        const { event } = record;
+      for (const eventRecord of events) {
+        const { event } = eventRecord;
 
         // Handle messageQueue.Processed events (UMP latency)
-        if (event.section === 'messageQueue' && event.method === 'Processed') {
-          await this.handleRelayChainMessageQueueProcessed(event, item);
+        if (event.type === 'MessageQueue' && event.value.type === 'Processed') {
+          await this.handleRelayChainMessageQueueProcessed(eventRecord, item);
         }
 
         // Handle rcMigrator.AhUmpQueuePriorityConfigSet event
-        if (event.section === 'rcMigrator' && event.method === 'AhUmpQueuePriorityConfigSet') {
-          await this.handleUmpQueuePriorityChangedEvent(event, apiAt, item);
+        if (event.type === 'RcMigrator' && event.value.type === 'AhUmpQueuePriorityConfigSet') {
+          await this.handleUmpQueuePriorityChangedEvent(eventRecord, api, blockHash, item);
         }
       }
     } catch (error) {
@@ -510,11 +534,32 @@ export class BlockProcessor {
   /**
    * Asset Hub event handlers
    */
-  private async handleAssetHubBatchProcessed(event: Event, item: QueueItem): Promise<void> {
+  private async handleAssetHubBatchProcessed(eventRecord: AhSystemEvent, item: QueueItem): Promise<void> {
+    let eventData: BatchProcessedEvent | undefined;
     try {
-      const palletName = event.data[0].toString(); // This is the pallet from the event.
-      const itemsProcessed = parseInt(event.data[1].toString()); // This is the items processed.
-      const itemsFailed = parseInt(event.data[2].toString()); // This is the items failed.
+      eventData = eventRecord.event.value.value as BatchProcessedEvent;
+      // In PAPI, pallet is an Enum with a 'type' property
+      const palletName = typeof eventData.pallet === 'string' ? eventData.pallet : eventData.pallet.type;
+
+      // PAPI returns count_good and count_bad (not items_processed/items_failed)
+      // These are returned as number type from PAPI
+      const itemsProcessed = eventData.count_good;
+      const itemsFailed = eventData.count_bad;
+
+      // Validate the numbers are finite
+      if (!Number.isFinite(itemsProcessed) || !Number.isFinite(itemsFailed)) {
+        Log.chainEvent({
+          chain: 'asset-hub',
+          eventType: 'BatchProcessed - invalid numbers',
+          details: {
+            palletName,
+            itemsProcessed,
+            itemsFailed,
+            rawEventData: eventData,
+          },
+        });
+        return;
+      }
 
       // Normalize the event pallet name to our internal pallet name
       const targetPallet = normalizeEventPalletName(palletName);
@@ -579,18 +624,6 @@ export class BlockProcessor {
       const palletMigrationCache = PalletMigrationCache.getInstance();
       palletMigrationCache.addBatchData(targetPallet, itemsProcessed, itemsFailed);
 
-      // Emit alert if there are failed items
-      if (itemsFailed > 0) {
-        eventService.emit('migrationAlert', {
-          blockNumber: item.blockNumber,
-          palletName: targetPallet,
-          itemsProcessed,
-          itemsFailed,
-          stageName: currentStageName,
-          stageId: currentStage.id,
-        });
-      }
-
       Log.chainEvent({
         chain: 'asset-hub',
         eventType: 'BatchProcessed',
@@ -608,7 +641,7 @@ export class BlockProcessor {
         chain: 'asset-hub',
         eventType: 'BatchProcessed',
         blockNumber: item.blockNumber,
-        details: { eventData: event.toJSON() },
+        details: { eventData },
       });
     } catch (error) {
       Log.chainEvent({
@@ -616,13 +649,13 @@ export class BlockProcessor {
         eventType: 'BatchProcessed processing error',
         error: error as Error,
         details: {
-          eventData: event.toJSON(),
+          eventData,
         },
       });
     }
   }
 
-  private async handleAssetHubMessageQueueProcessed(event: Event, item: QueueItem): Promise<void> {
+  private async handleAssetHubMessageQueueProcessed(eventRecord: AhSystemEvent, item: QueueItem): Promise<void> {
     try {
       // Simple increment - DMP messages processed on Asset Hub
       const updatedDb = await db.update(xcmMessageCounters)
@@ -658,7 +691,7 @@ export class BlockProcessor {
     }
   }
 
-  private async handleAssetHubUpwardMessageSent(event: Event, item: QueueItem): Promise<void> {
+  private async handleAssetHubUpwardMessageSent(eventRecord: AhSystemEvent, item: QueueItem): Promise<void> {
     try {
       Log.chainEvent({
         chain: 'asset-hub',
@@ -678,7 +711,7 @@ export class BlockProcessor {
    * Relay Chain event handlers
    */
   private async handleRelayChainMessageQueueProcessed(
-    _: Event,
+    _: RcSystemEvent,
     item: QueueItem
   ): Promise<void> {
     try {
@@ -720,25 +753,24 @@ export class BlockProcessor {
    * Asset Hub storage queries
    */
   private async processAssetHubStorage(
-    apiAt: ApiDecoration<'promise'>,
+    api: AssetHubApi,
+    blockHash: string,
     item: QueueItem
   ): Promise<void> {
     try {
       // Query priority config only once on first full mode block
       if (!this.ahPriorityConfigQueried) {
         const [pendingUpwardMessages, dmpQueuePriority, ahBalancesBefore] = await Promise.all([
-          apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
-          apiAt.query.ahMigrator.dmpQueuePriorityConfig<PalletRcMigratorQueuePriority>(),
-          apiAt.query.ahMigrator.ahBalancesBefore<PalletAhMigratorBalancesBefore>()
+          api.query.ParachainSystem.PendingUpwardMessages.getValue({ at: blockHash }),
+          api.query.AhMigrator.DmpQueuePriorityConfig.getValue({ at: blockHash }),
+          api.query.AhMigrator.AhBalancesBefore.getValue({ at: blockHash })
         ]);
 
         await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
         await this.handleDmpQueuePriority(dmpQueuePriority, item);
         await this.handleAhBalancesBefore(ahBalancesBefore, item);
       } else {
-        const [pendingUpwardMessages] = await Promise.all([
-          apiAt.query.parachainSystem.pendingUpwardMessages<Vec<Bytes>>(),
-        ]);
+        const pendingUpwardMessages = await api.query.ParachainSystem.PendingUpwardMessages.getValue({ at: blockHash });
 
         await this.handleAhPendingUpwardMessages(pendingUpwardMessages, item);
       }
@@ -762,19 +794,18 @@ export class BlockProcessor {
    * Relay Chain storage queries
    */
   private async processRelayChainStorage(
-    apiAt: ApiDecoration<'promise'>,
+    api: RelayChainApi,
+    blockHash: string,
     item: QueueItem
   ): Promise<void> {
     try {
       // Query priority config only once on first full mode block
       if (!this.rcPriorityConfigQueried) {
         const [migrationStage, dmpMessageQueue, umpQueuePriority, rcBalanceMigration] = await Promise.all([
-          apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
-          apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
-            1000
-          ),
-          apiAt.query.rcMigrator.ahUmpQueuePriorityConfig<PalletRcMigratorQueuePriority>(),
-          apiAt.query.rcMigrator.rcMigratedBalance<PalletRcMigratorAccountsMigratedBalances>(),
+          api.query.RcMigrator.RcMigrationStage.getValue({ at: blockHash }),
+          api.query.Dmp.DownwardMessageQueues.getValue(1000, { at: blockHash }),
+          api.query.RcMigrator.AhUmpQueuePriorityConfig.getValue({ at: blockHash }),
+          api.query.RcMigrator.RcMigratedBalance.getValue({ at: blockHash }),
         ]);
 
         await this.handleRcMigrationStage(migrationStage, item);
@@ -785,11 +816,9 @@ export class BlockProcessor {
         this.rcPriorityConfigQueried = true;
       } else {
         const [migrationStage, dmpMessageQueue, rcBalanceMigration] = await Promise.all([
-          apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>(),
-          apiAt.query.dmp.downwardMessageQueues<Vec<PolkadotCorePrimitivesInboundDownwardMessage>>(
-            1000
-          ),
-          apiAt.query.rcMigrator.rcMigratedBalance<PalletRcMigratorAccountsMigratedBalances>(),
+          api.query.RcMigrator.RcMigrationStage.getValue({ at: blockHash }),
+          api.query.Dmp.DownwardMessageQueues.getValue(1000, { at: blockHash }),
+          api.query.RcMigrator.RcMigratedBalance.getValue({ at: blockHash }),
         ]);
 
         await this.handleRcMigrationStage(migrationStage, item);
@@ -812,11 +841,13 @@ export class BlockProcessor {
     }
   }
 
-  private async handleAhPendingUpwardMessages(pendingUpwardMessages: Vec<Bytes>, item: QueueItem) {
+  private async handleAhPendingUpwardMessages(pendingUpwardMessages: Binary[], item: QueueItem) {
     try {
       let totalSizeBytes = 0;
       for (const message of pendingUpwardMessages) {
-        const messageSize = message.length;
+        // PAPI returns Binary objects, convert to hex and calculate byte size
+        const hexString = message.asHex();
+        const messageSize = (hexString.length - 2) / 2; // Remove '0x' prefix and divide by 2
         totalSizeBytes += messageSize;
       }
 
@@ -847,7 +878,7 @@ export class BlockProcessor {
   }
 
   private async handleRcDownwardMessageQueues(
-    dmpMessageQueue: Vec<PolkadotCorePrimitivesInboundDownwardMessage>,
+    dmpMessageQueue: Array<{ sent_at: number; msg: Binary }>,
     item: QueueItem
   ) {
     try {
@@ -855,7 +886,9 @@ export class BlockProcessor {
       // Calculate exact total size in bytes by summing encoded lengths
       let totalSizeBytes = 0;
       for (const message of dmpMessageQueue) {
-        totalSizeBytes += message.msg.encodedLength;
+        // PAPI returns Binary objects, convert to hex and calculate byte size
+        const hexString = message.msg.asHex();
+        totalSizeBytes += (hexString.length - 2) / 2;
       }
 
       // Determine event type based on size change
@@ -906,13 +939,15 @@ export class BlockProcessor {
   }
 
   private async handleRcMigrationStage(
-    migrationStage: PalletRcMigratorMigrationStage,
+    migrationStage: any,
     item: QueueItem
   ) {
     const timeInStageCache = TimeInStageCache.getInstance();
 
     try {
       const currentStage = migrationStage.type;
+      const isScheduled = currentStage === 'Scheduled';
+      const scheduledBlockNumber = isScheduled ? (migrationStage.value as { start: number }).start : undefined;
 
       // Check if this is a new stage before inserting
       const isNewStage = await timeInStageCache.recordStageStart(currentStage);
@@ -922,15 +957,13 @@ export class BlockProcessor {
         await db.insert(migrationStages).values({
           stage: currentStage,
           chain: 'relay-chain',
-          details: JSON.stringify(migrationStage.toJSON()),
-          scheduledBlockNumber: migrationStage.isScheduled
-            ? migrationStage.asScheduled.start.toNumber()
-            : undefined,
+          details: JSON.stringify(migrationStage),
+          scheduledBlockNumber,
         });
       }
 
-      if (migrationStage.isScheduled) {
-        await this.setMigrationBlockNumber(migrationStage.asScheduled.start.toNumber());
+      if (isScheduled && scheduledBlockNumber) {
+        await this.setMigrationBlockNumber(scheduledBlockNumber);
       }
 
       // Check if migration is completed
@@ -959,30 +992,28 @@ export class BlockProcessor {
       let warmUpEndBlock: number | null = null;
       let coolOffEndBlock: number | null = null;
 
-      if (migrationStage.isWarmUp) {
-        warmUpEndBlock = migrationStage.asWarmUp.endAt.toNumber();
-      } else if (migrationStage.isCoolOff) {
-        coolOffEndBlock = migrationStage.asCoolOff.endAt.toNumber();
+      if (currentStage === 'WarmUp') {
+        warmUpEndBlock = (migrationStage.value as { endAt: number }).endAt;
+      } else if (currentStage === 'CoolOff') {
+        coolOffEndBlock = (migrationStage.value as { endAt: number }).endAt;
       }
 
       // Emit event on every block to update timeInPallet
       eventService.emit('rcStageUpdate', {
         stage: currentStage,
         chain: 'relay-chain',
-        details: migrationStage.toJSON(),
+        details: migrationStage,
         timestamp: new Date(item.timestamp!).toISOString(),
         palletName: palletName || null,
-        scheduledBlockNumber: migrationStage.isScheduled
-          ? migrationStage.asScheduled.start.toNumber()
-          : null,
-        warmUpEndBlock,
-        coolOffEndBlock,
+        scheduledBlockNumber,
         palletInitStartedAt: palletInfo?.initStartedAt || null,
         timeInPallet: palletInfo?.timeInPallet || null,
         isNewStage,
         isPalletCompleted: palletInfo?.isCompleted || false,
         palletTotalDuration: palletInfo?.totalDuration || null,
         currentPalletStage: palletInfo?.currentStage || null,
+        warmUpEndBlock,
+        coolOffEndBlock,
       });
 
       Log.chainEvent({
@@ -994,11 +1025,7 @@ export class BlockProcessor {
           isNewStage,
           timeInPallet: palletInfo?.timeInPallet || null,
           isPalletCompleted: palletInfo?.isCompleted || false,
-          scheduledBlockNumber: migrationStage.isScheduled
-            ? migrationStage.asScheduled.start.toNumber()
-            : null,
-          warmUpEndBlock,
-          coolOffEndBlock,
+          scheduledBlockNumber,
         },
       });
     } catch (error) {
@@ -1011,22 +1038,56 @@ export class BlockProcessor {
   }
 
   private async handleUmpQueuePriority(
-    queuePriority: PalletRcMigratorQueuePriority,
+    queuePriority: QueuePriorityConfig,
     item: QueueItem
   ): Promise<void> {
     try {
       const priorityType = queuePriority.type;
 
-      eventService.emit('umpQueuePriority', {
-        type: priorityType,
-        timestamp: new Date(item.timestamp!).toISOString(),
+      const existing = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'ump'),
       });
 
-      Log.service({
-        service: 'UMP Queue Priority',
-        action: 'UMP queue priority config retrieved',
-        details: { type: priorityType },
-      });
+      // Only update if this is the first time, or if the priority type has actually changed
+      if (!existing) {
+        // First time - insert new record
+        await db.insert(queuePriorityConfigs).values({
+          queueType: 'ump',
+          priorityType,
+          lastUpdated: new Date(item.timestamp!),
+        });
+
+        eventService.emit('umpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'UMP Queue Priority',
+          action: 'UMP queue priority config initialized',
+          details: { type: priorityType },
+        });
+      } else if (existing.priorityType !== priorityType) {
+        // Priority type has changed - update existing record
+        await db.update(queuePriorityConfigs)
+          .set({
+            priorityType,
+            lastUpdated: new Date(item.timestamp!),
+          })
+          .where(eq(queuePriorityConfigs.queueType, 'ump'));
+
+        eventService.emit('umpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'UMP Queue Priority',
+          action: 'UMP queue priority config changed',
+          details: { type: priorityType },
+        });
+      }
+      // else: priority type hasn't changed, do nothing
     } catch (error) {
       Log.service({
         service: 'UMP Queue Priority',
@@ -1037,22 +1098,56 @@ export class BlockProcessor {
   }
 
   private async handleDmpQueuePriority(
-    queuePriority: any,
+    queuePriority: QueuePriorityConfig,
     item: QueueItem
   ): Promise<void> {
     try {
       const priorityType = queuePriority.type;
 
-      eventService.emit('dmpQueuePriority', {
-        type: priorityType,
-        timestamp: new Date(item.timestamp!).toISOString(),
+      const existing = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'dmp'),
       });
 
-      Log.service({
-        service: 'DMP Queue Priority',
-        action: 'DMP queue priority config retrieved',
-        details: { type: priorityType },
-      });
+      // Only update if this is the first time, or if the priority type has actually changed
+      if (!existing) {
+        // First time - insert new record
+        await db.insert(queuePriorityConfigs).values({
+          queueType: 'dmp',
+          priorityType,
+          lastUpdated: new Date(item.timestamp!),
+        });
+
+        eventService.emit('dmpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'DMP Queue Priority',
+          action: 'DMP queue priority config initialized',
+          details: { type: priorityType },
+        });
+      } else if (existing.priorityType !== priorityType) {
+        // Priority type has changed - update existing record
+        await db.update(queuePriorityConfigs)
+          .set({
+            priorityType,
+            lastUpdated: new Date(item.timestamp!),
+          })
+          .where(eq(queuePriorityConfigs.queueType, 'dmp'));
+
+        eventService.emit('dmpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'DMP Queue Priority',
+          action: 'DMP queue priority config changed',
+          details: { type: priorityType },
+        });
+      }
+      // else: priority type hasn't changed, do nothing
     } catch (error) {
       Log.service({
         service: 'DMP Queue Priority',
@@ -1063,8 +1158,9 @@ export class BlockProcessor {
   }
 
   private async handleUmpQueuePriorityChangedEvent(
-    _: Event,
-    apiAt: ApiDecoration<'promise'>,
+    _: RcSystemEvent,
+    api: RelayChainApi,
+    blockHash: string,
     item: QueueItem
   ): Promise<void> {
     try {
@@ -1074,7 +1170,7 @@ export class BlockProcessor {
         details: { blockNumber: item.blockNumber },
       });
 
-      const umpQueuePriority = await apiAt.query.rcMigrator.ahUmpQueuePriorityConfig<PalletRcMigratorQueuePriority>();
+      const umpQueuePriority = await api.query.RcMigrator.AhUmpQueuePriorityConfig.getValue({ at: blockHash });
       await this.handleUmpQueuePriority(umpQueuePriority, item);
     } catch (error) {
       Log.service({
@@ -1086,8 +1182,9 @@ export class BlockProcessor {
   }
 
   private async handleDmpQueuePriorityChangedEvent(
-    _: Event,
-    apiAt: ApiDecoration<'promise'>,
+    _: AhSystemEvent,
+    api: AssetHubApi,
+    blockHash: string,
     item: QueueItem
   ): Promise<void> {
     try {
@@ -1097,7 +1194,7 @@ export class BlockProcessor {
         details: { blockNumber: item.blockNumber },
       });
 
-      const dmpQueuePriority = await apiAt.query.ahMigrator.dmpQueuePriorityConfig();
+      const dmpQueuePriority = await api.query.AhMigrator.DmpQueuePriorityConfig.getValue({ at: blockHash });
       await this.handleDmpQueuePriority(dmpQueuePriority, item);
     } catch (error) {
       Log.service({
@@ -1109,7 +1206,7 @@ export class BlockProcessor {
   }
 
   private async handleRcBalanceMigration(
-    balanceMigration: PalletRcMigratorAccountsMigratedBalances,
+    balanceMigration: { kept: bigint; migrated: bigint },
     item: QueueItem
   ): Promise<void> {
     try {
@@ -1189,14 +1286,14 @@ export class BlockProcessor {
   }
 
   private async handleAhBalancesBefore(
-    balancesBefore: PalletAhMigratorBalancesBefore,
+    balancesBefore: { checking_account: bigint; total_issuance: bigint },
     item: QueueItem
   ): Promise<void> {
     try {
-      const checkingAccountBalance = balancesBefore.checkingAccount.toString();
-      const totalIssuanceBalance = balancesBefore.totalIssuance.toString();
+      const checkingAccountBalance = balancesBefore.checking_account.toString();
+      const totalIssuanceBalance = balancesBefore.total_issuance.toString();
 
-      if (balancesBefore.totalIssuance.gt(BN_ZERO)) {
+      if (balancesBefore.total_issuance > 0n) {
         this.ahPriorityConfigQueried = true;
       }
 
@@ -1251,7 +1348,8 @@ export class BlockProcessor {
    * This runs only once when processing the first Relay Chain block
    */
   private async performInitialStageCheck(
-    apiAt: ApiDecoration<'promise'>,
+    api: RelayChainApi,
+    blockHash: string,
     item: QueueItem
   ): Promise<void> {
     try {
@@ -1272,17 +1370,17 @@ export class BlockProcessor {
       }
 
       // Query the current migration stage
-      const rcMigrationStage = await apiAt.query.rcMigrator.rcMigrationStage<PalletRcMigratorMigrationStage>();
+      const rcMigrationStage = await api.query.RcMigrator.RcMigrationStage.getValue({ at: blockHash });
 
       const stageType = rcMigrationStage.type;
-      const isOngoing = !rcMigrationStage.isPending && !rcMigrationStage.isScheduled;
+      const isOngoing = stageType !== 'Pending' && stageType !== 'Scheduled';
 
       Log.service({
         service: 'Block Processor',
         action: 'Initial stage check performed',
         details: {
           stageType,
-          isScheduled: rcMigrationStage.isScheduled,
+          isScheduled: stageType === 'Scheduled',
           isOngoing,
         },
       });
@@ -1291,7 +1389,7 @@ export class BlockProcessor {
       await this.handleRcMigrationStage(rcMigrationStage, item);
 
       // If migration is scheduled or ongoing, switch to FULL mode immediately
-      if (isOngoing) {
+      if (stageType === 'Scheduled' || isOngoing) {
 
         this.currentMode = ProcessingMode.FULL;
 
@@ -1299,7 +1397,7 @@ export class BlockProcessor {
           service: 'Block Processor',
           action: 'Switching to FULL mode from initial check',
           details: {
-            reason: rcMigrationStage.isScheduled ? 'Migration is scheduled' : 'Migration is ongoing',
+            reason: stageType === 'Scheduled' ? 'Migration is scheduled' : 'Migration is ongoing',
             migrationBlockNumber: this.migrationStartBlockNumber,
             currentBlock: item.blockNumber,
           },
@@ -1323,7 +1421,7 @@ export class BlockProcessor {
    */
   private async processRelayChainDetectionOnly(
     item: QueueItem,
-    events: Vec<FrameSystemEventRecord>
+    events: RcSystemEvents
   ): Promise<void> {
     Log.service({
       service: 'Block Processor',
@@ -1338,10 +1436,10 @@ export class BlockProcessor {
       // Look for migration scheduling events
       for (const record of events) {
         const { event } = record;
-        
+
         // Look for rcMigrator.StageTransition events
-			if (event.section === 'rcMigrator' && event.method === 'StageTransition') {
-          const [fromState, toState] = event.data.toJSON() as [unknown, unknown];
+        if (event.type === 'RcMigrator' && event.value.type === 'StageTransition') {
+          const { old: fromState, new: toState } = event.value.value;
 
           // Extract stage name from toState
           const stageName = this.getStageNameFromState(toState);

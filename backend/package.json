@@ -13,7 +13,9 @@
     "test:services": "yarn build:scripts && node ./build-scripts/scripts/testServices.js",
     "test:xcmProcessing": "yarn build:scripts && node ./build-scripts/scripts/testBlock.js",
     "lint": "eslint src --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.{ts,js,json}\""
+    "format": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "papi:generate": "papi generate",
+    "papi:update": "papi update"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +24,9 @@
   "dependencies": {
     "@libsql/client": "^0.15.4",
     "@libsql/sqlite3": "^0.3.1",
+    "@polkadot-api/descriptors": "portal:.papi/descriptors",
+    "@polkadot-api/substrate-client": "^0.4.7",
+    "@polkadot-api/ws-provider": "^0.7.0",
     "@polkadot/api": "^16.2.2",
     "@types/cors": "^2.8.18",
     "@types/express": "^5.0.1",
@@ -30,9 +35,12 @@
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.29.3",
     "express": "^5.1.0",
+    "polkadot-api": "^1.7.9",
+    "rxjs": "^7.8.1",
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@polkadot-api/cli": "^0.13.4",
     "@types/better-sqlite3": "^7.6.9",
     "@types/node": "^20.11.24",
     "@typescript-eslint/eslint-plugin": "^7.0.0",

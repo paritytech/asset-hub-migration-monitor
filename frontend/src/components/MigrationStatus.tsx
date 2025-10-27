@@ -74,8 +74,9 @@ const LiveTimer: React.FC<{ lastUpdate: Date | null; chain: string; dotColor: st
   );
 };
 
-// const ESTIMATED_TOTAL_ITEMS = 140000;
-const ESTIMATED_TOTAL_ITEMS = 842345; // Kusama
+// Estimated total items to migrate (placeholder until we have actual Polkadot data)
+// Kusama had 842,345 items, Polkadot likely has more
+const ESTIMATED_TOTAL_ITEMS = 1000000; // Polkadot (placeholder - update with actual count when available)
 
 const MigrationStatus: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<MigrationStage | null>(null);

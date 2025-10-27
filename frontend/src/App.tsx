@@ -3,7 +3,6 @@ import MigrationStatus from './components/MigrationStatus';
 import PerPalletMigrationStatus from './components/PerPalletMigrationStatus';
 import XcmMessageMetrics from './components/XcmMessageMetrics';
 import BalanceVerification from './components/BalanceVerification';
-import AlertsCard from './components/AlertsCard';
 import BackendUrlInput from './components/BackendUrlInput';
 import KusamaMigrationBanner from './components/KusamaMigrationBanner';
 import KusamaMigrationStats from './components/KusamaMigrationStats';
@@ -67,7 +66,7 @@ function App() {
       <header>
         <div className="logo">
           <img src={polkadotLogo} alt="Polkadot Logo" />
-          <h1>Asset Hub Kusama Migration Monitor</h1>
+          <h1>Asset Hub Polkadot Migration Monitor</h1>
         </div>
         <div className="header-info">
           {process.env.ALLOW_REMOTE_BACKEND === 'true' && (
@@ -97,7 +96,6 @@ function App() {
         <PerPalletMigrationStatus />
         <XcmMessageMetrics />
         <BalanceVerification />
-        <AlertsCard />
       </main>
       <footer className="app-footer">
         <div className="footer-content">

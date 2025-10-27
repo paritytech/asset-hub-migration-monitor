@@ -1,13 +1,19 @@
-import { ApiPromise, WsProvider } from '@polkadot/api';
+import { createClient, type PolkadotClient, type TypedApi } from 'polkadot-api';
+import { getWsProvider } from '@polkadot-api/ws-provider/node';
+import { relayChain, assetHub } from '@polkadot-api/descriptors';
 
 import { getConfig } from '../config';
 
+// Type for the typed APIs
+type RelayChainApi = TypedApi<typeof relayChain>;
+type AssetHubApi = TypedApi<typeof assetHub>;
+
 export class AbstractApi {
   private static instance: AbstractApi;
-  private relayChainApi: ApiPromise | null = null;
-  private assetHubApi: ApiPromise | null = null;
-  private relayChainProvider: WsProvider | null = null;
-  private assetHubProvider: WsProvider | null = null;
+  private relayChainClient: PolkadotClient | null = null;
+  private assetHubClient: PolkadotClient | null = null;
+  private relayChainApi: RelayChainApi | null = null;
+  private assetHubApi: AssetHubApi | null = null;
 
   private constructor() {}
 
@@ -18,37 +24,49 @@ export class AbstractApi {
     return AbstractApi.instance;
   }
 
-  public async getRelayChainApi(): Promise<ApiPromise> {
+  public getRelayChainApi(): RelayChainApi {
     if (!this.relayChainApi) {
       const config = getConfig();
-      this.relayChainProvider = new WsProvider(config.relayChainUrl);
-      this.relayChainApi = await ApiPromise.create({ provider: this.relayChainProvider });
-
-      await this.relayChainApi.isReady;
+      this.relayChainClient = createClient(getWsProvider(config.relayChainUrl));
+      this.relayChainApi = this.relayChainClient.getTypedApi(relayChain);
     }
     return this.relayChainApi;
   }
 
-  public async getAssetHubApi(): Promise<ApiPromise> {
+  public getAssetHubApi(): AssetHubApi {
     if (!this.assetHubApi) {
       const config = getConfig();
-      this.assetHubProvider = new WsProvider(config.assetHubUrl);
-      this.assetHubApi = await ApiPromise.create({ provider: this.assetHubProvider });
-
-      await this.assetHubApi.isReady;
+      this.assetHubClient = createClient(getWsProvider(config.assetHubUrl));
+      this.assetHubApi = this.assetHubClient.getTypedApi(assetHub);
     }
     return this.assetHubApi;
   }
 
-  public async disconnect(): Promise<void> {
-    if (this.relayChainProvider) {
-      await this.relayChainProvider.disconnect();
-      this.relayChainProvider = null;
+  public getRelayChainClient(): PolkadotClient {
+    if (!this.relayChainClient) {
+      // Initialize the API if not already done
+      this.getRelayChainApi();
+    }
+    return this.relayChainClient!;
+  }
+
+  public getAssetHubClient(): PolkadotClient {
+    if (!this.assetHubClient) {
+      // Initialize the API if not already done
+      this.getAssetHubApi();
+    }
+    return this.assetHubClient!;
+  }
+
+  public disconnect(): void {
+    if (this.relayChainClient) {
+      this.relayChainClient.destroy();
+      this.relayChainClient = null;
       this.relayChainApi = null;
     }
-    if (this.assetHubProvider) {
-      await this.assetHubProvider.disconnect();
-      this.assetHubProvider = null;
+    if (this.assetHubClient) {
+      this.assetHubClient.destroy();
+      this.assetHubClient = null;
       this.assetHubApi = null;
     }
   }
