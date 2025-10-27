@@ -102,3 +102,17 @@ export const balanceVerification = sqliteTable('balance_verification', {
 
 export type BalanceVerification = typeof balanceVerification.$inferSelect;
 export type NewBalanceVerification = typeof balanceVerification.$inferInsert;
+
+// Queue Priority Configs - stores the latest priority configuration for UMP and DMP queues
+export const queuePriorityConfigs = sqliteTable('queue_priority_configs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  queueType: text('queue_type').notNull().unique(), // 'ump' or 'dmp'
+  priorityType: text('priority_type').notNull(), // 'Config', 'OverrideConfig', or 'Disabled'
+  overrideValues: text('override_values'), // JSON stringified [threshold, drop_threshold] for OverrideConfig, null otherwise
+  lastUpdated: integer('last_updated', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type QueuePriorityConfig = typeof queuePriorityConfigs.$inferSelect;
+export type NewQueuePriorityConfig = typeof queuePriorityConfigs.$inferInsert;

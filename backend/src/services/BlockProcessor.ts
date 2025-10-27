@@ -15,6 +15,9 @@ type AhEventEnum = AhSystemEvent['event'];
 type AhMigratorEvents = Extract<AhEventEnum, { type: 'AhMigrator' }>['value'];
 type BatchProcessedEvent = Extract<AhMigratorEvents, { type: 'BatchProcessed' }>['value'];
 
+// Queue priority config types
+type QueuePriorityConfig = Awaited<ReturnType<RelayChainApi['query']['RcMigrator']['AhUmpQueuePriorityConfig']['getValue']>>;
+
 import { eq, desc, and } from 'drizzle-orm';
 
 import { sql } from 'drizzle-orm';
@@ -27,6 +30,7 @@ import {
   dmpQueueEvents,
   umpQueueEvents,
   balanceVerification,
+  queuePriorityConfigs,
 } from '../db/schema';
 import { Log } from '../logging/Log';
 import { getCurrentStageForPallet, getPalletFromStage, normalizeEventPalletName } from '../util/stageToPalletMapping';
@@ -1022,11 +1026,36 @@ export class BlockProcessor {
   }
 
   private async handleUmpQueuePriority(
-    queuePriority: any,
+    queuePriority: QueuePriorityConfig,
     item: QueueItem
   ): Promise<void> {
     try {
       const priorityType = queuePriority.type;
+      const overrideValues = priorityType === 'OverrideConfig'
+        ? JSON.stringify(queuePriority.value)
+        : null;
+
+      // Upsert to database
+      const existing = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'ump'),
+      });
+
+      if (existing) {
+        await db.update(queuePriorityConfigs)
+          .set({
+            priorityType,
+            overrideValues,
+            lastUpdated: new Date(item.timestamp!),
+          })
+          .where(eq(queuePriorityConfigs.queueType, 'ump'));
+      } else {
+        await db.insert(queuePriorityConfigs).values({
+          queueType: 'ump',
+          priorityType,
+          overrideValues,
+          lastUpdated: new Date(item.timestamp!),
+        });
+      }
 
       eventService.emit('umpQueuePriority', {
         type: priorityType,
@@ -1048,11 +1077,36 @@ export class BlockProcessor {
   }
 
   private async handleDmpQueuePriority(
-    queuePriority: any,
+    queuePriority: QueuePriorityConfig,
     item: QueueItem
   ): Promise<void> {
     try {
       const priorityType = queuePriority.type;
+      const overrideValues = priorityType === 'OverrideConfig'
+        ? JSON.stringify(queuePriority.value)
+        : null;
+
+      // Upsert to database
+      const existing = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'dmp'),
+      });
+
+      if (existing) {
+        await db.update(queuePriorityConfigs)
+          .set({
+            priorityType,
+            overrideValues,
+            lastUpdated: new Date(item.timestamp!),
+          })
+          .where(eq(queuePriorityConfigs.queueType, 'dmp'));
+      } else {
+        await db.insert(queuePriorityConfigs).values({
+          queueType: 'dmp',
+          priorityType,
+          overrideValues,
+          lastUpdated: new Date(item.timestamp!),
+        });
+      }
 
       eventService.emit('dmpQueuePriority', {
         type: priorityType,
