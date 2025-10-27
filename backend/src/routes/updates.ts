@@ -139,6 +139,32 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
 
     // Handle migration stages initial state
     if (requestedEvents.includes('rcStageUpdate')) {
+      const timeInStageCache = TimeInStageCache.getInstance();
+
+      // Send timing data for all completed pallets first
+      const completedPallets = timeInStageCache.getCompletedPallets();
+      for (const palletName of completedPallets) {
+        const palletInfo = timeInStageCache.getCurrentPalletInfo(palletName);
+        if (palletInfo) {
+          sendEvent('rcStageUpdate', {
+            stage: palletInfo.currentStage,
+            details: null,
+            timestamp: new Date().toISOString(),
+            palletName,
+            palletInitStartedAt: palletInfo.initStartedAt,
+            timeInPallet: palletInfo.timeInPallet,
+            scheduledBlockNumber: null,
+            warmUpEndBlock: null,
+            coolOffEndBlock: null,
+            isNewStage: false,
+            isPalletCompleted: palletInfo.isCompleted,
+            palletTotalDuration: palletInfo.totalDuration,
+            currentPalletStage: palletInfo.currentStage,
+          });
+        }
+      }
+
+      // Then send the current stage
       const rcStage = await db.query.migrationStages.findFirst({
         where: eq(migrationStages.chain, 'relay-chain'),
         orderBy: [desc(migrationStages.timestamp)],
@@ -148,7 +174,6 @@ export const updatesHandler: RequestHandler = async (req: Request, res: Response
         const palletName = getPalletFromStage(rcStage.stage);
 
         // Get pallet timing information
-        const timeInStageCache = TimeInStageCache.getInstance();
         const palletInfo = palletName ? timeInStageCache.getCurrentPalletInfo(palletName) : null;
 
         // Extract end_at from details if stage is WarmUp or CoolOff

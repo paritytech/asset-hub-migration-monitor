@@ -297,7 +297,7 @@ const PerPalletMigrationStatus: React.FC = () => {
                   <td>
                     {status ? (
                       <PalletTimer
-                        startTime={status.currentStage ? status.palletInitStartedAt : null}
+                        startTime={status.palletInitStartedAt}
                         isCompleted={status.isCompleted}
                         totalDuration={status.totalDuration}
                         timeInPallet={status.timeInPallet}
