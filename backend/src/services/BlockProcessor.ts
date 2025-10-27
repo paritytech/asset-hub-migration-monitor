@@ -15,6 +15,9 @@ type AhEventEnum = AhSystemEvent['event'];
 type AhMigratorEvents = Extract<AhEventEnum, { type: 'AhMigrator' }>['value'];
 type BatchProcessedEvent = Extract<AhMigratorEvents, { type: 'BatchProcessed' }>['value'];
 
+// Queue priority config types
+type QueuePriorityConfig = Awaited<ReturnType<RelayChainApi['query']['RcMigrator']['AhUmpQueuePriorityConfig']['getValue']>>;
+
 import { eq, desc, and } from 'drizzle-orm';
 
 import { sql } from 'drizzle-orm';
@@ -27,6 +30,7 @@ import {
   dmpQueueEvents,
   umpQueueEvents,
   balanceVerification,
+  queuePriorityConfigs,
 } from '../db/schema';
 import { Log } from '../logging/Log';
 import { getCurrentStageForPallet, getPalletFromStage, normalizeEventPalletName } from '../util/stageToPalletMapping';
@@ -1022,22 +1026,56 @@ export class BlockProcessor {
   }
 
   private async handleUmpQueuePriority(
-    queuePriority: any,
+    queuePriority: QueuePriorityConfig,
     item: QueueItem
   ): Promise<void> {
     try {
       const priorityType = queuePriority.type;
 
-      eventService.emit('umpQueuePriority', {
-        type: priorityType,
-        timestamp: new Date(item.timestamp!).toISOString(),
+      const existing = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'ump'),
       });
 
-      Log.service({
-        service: 'UMP Queue Priority',
-        action: 'UMP queue priority config retrieved',
-        details: { type: priorityType },
-      });
+      // Only update if this is the first time, or if the priority type has actually changed
+      if (!existing) {
+        // First time - insert new record
+        await db.insert(queuePriorityConfigs).values({
+          queueType: 'ump',
+          priorityType,
+          lastUpdated: new Date(item.timestamp!),
+        });
+
+        eventService.emit('umpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'UMP Queue Priority',
+          action: 'UMP queue priority config initialized',
+          details: { type: priorityType },
+        });
+      } else if (existing.priorityType !== priorityType) {
+        // Priority type has changed - update existing record
+        await db.update(queuePriorityConfigs)
+          .set({
+            priorityType,
+            lastUpdated: new Date(item.timestamp!),
+          })
+          .where(eq(queuePriorityConfigs.queueType, 'ump'));
+
+        eventService.emit('umpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'UMP Queue Priority',
+          action: 'UMP queue priority config changed',
+          details: { type: priorityType },
+        });
+      }
+      // else: priority type hasn't changed, do nothing
     } catch (error) {
       Log.service({
         service: 'UMP Queue Priority',
@@ -1048,22 +1086,56 @@ export class BlockProcessor {
   }
 
   private async handleDmpQueuePriority(
-    queuePriority: any,
+    queuePriority: QueuePriorityConfig,
     item: QueueItem
   ): Promise<void> {
     try {
       const priorityType = queuePriority.type;
 
-      eventService.emit('dmpQueuePriority', {
-        type: priorityType,
-        timestamp: new Date(item.timestamp!).toISOString(),
+      const existing = await db.query.queuePriorityConfigs.findFirst({
+        where: eq(queuePriorityConfigs.queueType, 'dmp'),
       });
 
-      Log.service({
-        service: 'DMP Queue Priority',
-        action: 'DMP queue priority config retrieved',
-        details: { type: priorityType },
-      });
+      // Only update if this is the first time, or if the priority type has actually changed
+      if (!existing) {
+        // First time - insert new record
+        await db.insert(queuePriorityConfigs).values({
+          queueType: 'dmp',
+          priorityType,
+          lastUpdated: new Date(item.timestamp!),
+        });
+
+        eventService.emit('dmpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'DMP Queue Priority',
+          action: 'DMP queue priority config initialized',
+          details: { type: priorityType },
+        });
+      } else if (existing.priorityType !== priorityType) {
+        // Priority type has changed - update existing record
+        await db.update(queuePriorityConfigs)
+          .set({
+            priorityType,
+            lastUpdated: new Date(item.timestamp!),
+          })
+          .where(eq(queuePriorityConfigs.queueType, 'dmp'));
+
+        eventService.emit('dmpQueuePriority', {
+          type: priorityType,
+          timestamp: new Date(item.timestamp!).toISOString(),
+        });
+
+        Log.service({
+          service: 'DMP Queue Priority',
+          action: 'DMP queue priority config changed',
+          details: { type: priorityType },
+        });
+      }
+      // else: priority type hasn't changed, do nothing
     } catch (error) {
       Log.service({
         service: 'DMP Queue Priority',
