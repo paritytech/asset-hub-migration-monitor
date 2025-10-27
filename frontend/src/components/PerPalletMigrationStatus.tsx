@@ -69,29 +69,11 @@ const PalletTimer: React.FC<{
 const PerPalletMigrationStatus: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [palletStatuses, setPalletStatuses] = useState<Map<string, PalletStatus>>(new Map());
-  
+
   const totalPages = Math.ceil(MIGRATION_PALLETS.length / PALLETS_PER_PAGE);
   const startIndex = currentPage * PALLETS_PER_PAGE;
   const endIndex = startIndex + PALLETS_PER_PAGE;
   const visiblePallets = MIGRATION_PALLETS.slice(startIndex, endIndex);
-
-  // Initialize pallet statuses
-  useEffect(() => {
-    const initialStatuses = new Map<string, PalletStatus>();
-    MIGRATION_PALLETS.forEach(pallet => {
-      initialStatuses.set(pallet, {
-        palletName: pallet,
-        status: 'pending',
-        currentStage: null,
-        timeInPallet: null,
-        totalDuration: null,
-        isCompleted: false,
-        palletInitStartedAt: null,
-        lastUpdated: Date.now(),
-      });
-    });
-    setPalletStatuses(initialStatuses);
-  }, []);
 
   // Subscribe to rcStageUpdate events
   const handleStageUpdate = useCallback((eventType: string, data: any) => {
@@ -102,16 +84,18 @@ const PerPalletMigrationStatus: React.FC = () => {
         // If migration is done, mark all pallets as completed
         if (data.stage === 'MigrationDone') {
           MIGRATION_PALLETS.forEach(pallet => {
-            const existing = newStatuses.get(pallet);
+            const existing = newStatuses.get(pallet) || {
+              palletName: pallet,
+              status: 'pending' as const,
+              currentStage: null,
+              timeInPallet: null,
+              totalDuration: null,
+              isCompleted: false,
+              palletInitStartedAt: null,
+              lastUpdated: Date.now(),
+            };
             newStatuses.set(pallet, {
-              ...(existing || {
-                palletName: pallet,
-                currentStage: null,
-                timeInPallet: null,
-                totalDuration: null,
-                palletInitStartedAt: null,
-                lastUpdated: Date.now(),
-              }),
+              ...existing,
               status: 'completed',
               isCompleted: true,
             });
@@ -199,20 +183,27 @@ const PerPalletMigrationStatus: React.FC = () => {
     if (eventType === 'palletMigrationSummary') {
       setPalletStatuses(prev => {
         const newStatuses = new Map(prev);
-        
+
         // Update each pallet with its migration data
         data.pallets.forEach((pallet: any) => {
-          const existing = newStatuses.get(pallet.palletName);
-          if (existing) {
-            newStatuses.set(pallet.palletName, {
-              ...existing,
-              itemsProcessed: pallet.totalItemsProcessed,
-              itemsFailed: pallet.totalItemsFailed,
-              lastUpdated: Date.now(),
-            });
-          }
+          const existing = newStatuses.get(pallet.palletName) || {
+            palletName: pallet.palletName,
+            status: 'pending' as const,
+            currentStage: null,
+            timeInPallet: null,
+            totalDuration: null,
+            isCompleted: false,
+            palletInitStartedAt: null,
+            lastUpdated: Date.now(),
+          };
+          newStatuses.set(pallet.palletName, {
+            ...existing,
+            itemsProcessed: pallet.totalItemsProcessed,
+            itemsFailed: pallet.totalItemsFailed,
+            lastUpdated: Date.now(),
+          });
         });
-        
+
         return newStatuses;
       });
     }
@@ -304,13 +295,15 @@ const PerPalletMigrationStatus: React.FC = () => {
                     )}
                   </td>
                   <td>
-                    {status && (
+                    {status ? (
                       <PalletTimer
                         startTime={status.currentStage ? status.palletInitStartedAt : null}
                         isCompleted={status.isCompleted}
                         totalDuration={status.totalDuration}
                         timeInPallet={status.timeInPallet}
                       />
+                    ) : (
+                      <span>-</span>
                     )}
                   </td>
                 </tr>
