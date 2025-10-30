@@ -62,16 +62,16 @@ const BalanceVerification: React.FC = () => {
     }
   }, []));
 
-  // Format balance for display (assumes balance is in planck, convert to KSM)
+  // Format balance for display (assumes balance is in planck, convert to DOT)
   const formatBalance = (balance: string | null): string => {
     if (!balance) return '-';
     try {
       const num = BigInt(balance);
-      const ksm = Number(num) / 1e12;
-      return ksm.toLocaleString(undefined, {
+      const dot = Number(num) / 1e10;
+      return dot.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      }) + ' KSM';
+      }) + ' DOT';
     } catch {
       return 'Invalid';
     }
