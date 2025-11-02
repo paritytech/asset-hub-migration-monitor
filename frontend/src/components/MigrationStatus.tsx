@@ -78,6 +78,10 @@ const LiveTimer: React.FC<{ lastUpdate: Date | null; chain: string; dotColor: st
 // Kusama had 842,345 items, Polkadot likely has more
 const ESTIMATED_TOTAL_ITEMS = 2093931; // Polkadot (placeholder - update with actual count when available)
 
+// List of phantom stages that should be displayed but not tracked in carousel/progress
+// These are internal initialization stages that don't represent actual pallet migrations
+const PHANTOM_STAGES = ['PureProxyCandidatesMigrationInit'];
+
 const MigrationStatus: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<MigrationStage | null>(null);
   const [completedPallets, setCompletedPallets] = useState<string[]>([]);
@@ -108,6 +112,11 @@ const MigrationStatus: React.FC = () => {
     if (data.stage === 'MigrationDone') {
       setCompletedPallets([...MIGRATION_PALLETS]);
       setTotalItemsProcessed(ESTIMATED_TOTAL_ITEMS); // Force 100%
+      return;
+    }
+
+    // Skip phantom stages - display them but don't update carousel position
+    if (PHANTOM_STAGES.includes(data.stage)) {
       return;
     }
 
@@ -155,19 +164,24 @@ const MigrationStatus: React.FC = () => {
 
   // Calculate which pallets to show in the carousel
   const getVisiblePallets = () => {
-    const currentIndex = MIGRATION_PALLETS.findIndex(pallet => 
+    // Skip phantom stages - don't use them to determine carousel position
+    if (currentStage && PHANTOM_STAGES.includes(currentStage.stage)) {
+      return MIGRATION_PALLETS.slice(0, 6);
+    }
+
+    const currentIndex = MIGRATION_PALLETS.findIndex(pallet =>
       currentStage?.stage.toLowerCase().includes(pallet.toLowerCase())
     );
-    
+
     // If no current stage, show first few pallets
     if (currentIndex === -1) {
       return MIGRATION_PALLETS.slice(0, 6);
     }
-    
+
     // Show current pallet and a few before/after
     const startIndex = Math.max(0, currentIndex - 2);
     const endIndex = Math.min(MIGRATION_PALLETS.length, currentIndex + 4);
-    
+
     return MIGRATION_PALLETS.slice(startIndex, endIndex);
   };
 
@@ -269,8 +283,11 @@ const MigrationStatus: React.FC = () => {
         <div className="timeline">
           {visiblePallets.map((pallet, index) => {
             const isCompleted = completedPallets.includes(pallet);
-            const isCurrent = currentStage?.stage.toLowerCase().includes(pallet.toLowerCase());
-            
+            // Don't mark as current if we're in a phantom stage
+            const isCurrent = currentStage &&
+              !PHANTOM_STAGES.includes(currentStage.stage) &&
+              currentStage.stage.toLowerCase().includes(pallet.toLowerCase());
+
             return (
               <div key={pallet} className="timeline-point">
                 <div className={`point-marker ${isCompleted ? 'completed' : isCurrent ? 'ongoing' : ''}`}></div>
