@@ -62,7 +62,6 @@ function App() {
   // Render main dashboard
   return (
     <div className="app">
-      <KusamaMigrationBanner onNavigate={handleNavigateToStats} />
       <header>
         <div className="logo">
           <img src={polkadotLogo} alt="Polkadot Logo" />
@@ -106,6 +105,10 @@ function App() {
             <span className="footer-separator">•</span>
             <a href="https://forum.polkadot.network/t/asset-hub-migration-2025/11129/53" target="_blank" rel="noopener noreferrer" className="footer-link">
               About
+            </a>
+            <span className="footer-separator">•</span>
+            <a href="#/kusama" className="footer-link" onClick={handleNavigateToStats}>
+              Kusama Migration Stats
             </a>
           </div>
           <div className="footer-copyright">
