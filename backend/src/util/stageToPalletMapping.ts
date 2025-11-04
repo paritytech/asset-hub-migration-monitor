@@ -25,7 +25,6 @@ export const STAGE_TO_PALLET_MAP: Record<string, string> = {
   ProxyMigrationDone: 'Proxy',
 
   // Preimage stages
-  // TODO: There is one more Preimage stage we need to add.,
   PreimageMigrationInit: 'Preimage',
   PreimageMigrationChunksOngoing: 'Preimage',
   PreimageMigrationChunksDone: 'Preimage',
