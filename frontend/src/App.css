@@ -650,8 +650,74 @@ main {
 .landing-subtitle {
   font-size: 1.125rem;
   color: var(--text-light);
-  margin: 0 0 3rem 0;
+  margin: 0 0 2rem 0;
   text-align: center;
+}
+
+/* Success Banner */
+.success-banner {
+  background: linear-gradient(135deg, rgba(230, 0, 122, 0.05) 0%, rgba(230, 0, 122, 0.1) 100%);
+  border: 2px solid var(--primary);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  box-shadow: 0 4px 20px rgba(230, 0, 122, 0.15);
+  animation: fadeInScale 0.5s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.success-icon {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  color: var(--primary);
+  animation: checkmark 0.8s ease-in-out;
+}
+
+@keyframes checkmark {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.success-content {
+  flex: 1;
+  text-align: left;
+}
+
+.success-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.success-message {
+  font-size: 1rem;
+  color: var(--text-light);
+  margin: 0;
+  line-height: 1.6;
 }
 
 .network-cards {
@@ -759,7 +825,32 @@ main {
 
   .landing-subtitle {
     font-size: 1rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .success-banner {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+    gap: 1rem;
+  }
+
+  .success-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
+
+  .success-content {
+    text-align: center;
+  }
+
+  .success-title {
+    font-size: 1.25rem;
+  }
+
+  .success-message {
+    font-size: 0.9rem;
   }
 
   .network-cards {
@@ -791,6 +882,25 @@ main {
 
   .landing-subtitle {
     font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  .success-banner {
+    padding: 1rem;
+  }
+
+  .success-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+
+  .success-title {
+    font-size: 1.1rem;
+  }
+
+  .success-message {
+    font-size: 0.85rem;
   }
 
   .network-card {

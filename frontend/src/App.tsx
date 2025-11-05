@@ -53,6 +53,17 @@ function App() {
           <h2 className="landing-title">Select Network</h2>
           <p className="landing-subtitle">View migration statistics for Kusama or Polkadot Asset Hub</p>
 
+          <div className="success-banner">
+            <svg className="success-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <div className="success-content">
+              <h3 className="success-title">Migration Successfully Completed!</h3>
+              <p className="success-message">The Polkadot Asset Hub migration has been successfully completed. View detailed statistics for both networks below.</p>
+            </div>
+          </div>
+
           <div className="network-cards">
             <a href="#/kusama" className="network-card kusama-card">
               <div className="network-card-header">
@@ -85,7 +96,7 @@ function App() {
                 </div>
                 <div className="network-stat">
                   <span className="stat-label">Total Items</span>
-                  <span className="stat-value">TBD</span>
+                  <span className="stat-value">2,103,186</span>
                 </div>
               </div>
             </a>
