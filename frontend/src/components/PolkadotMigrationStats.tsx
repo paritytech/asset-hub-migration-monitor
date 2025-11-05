@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import './KusamaMigrationStats.css';
 
-interface KusamaMigrationStatsProps {
+interface PolkadotMigrationStatsProps {
   onBack: () => void;
 }
 
-const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) => {
+const PolkadotMigrationStats: React.FC<PolkadotMigrationStatsProps> = ({ onBack }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   // Load theme from localStorage on mount
@@ -22,52 +22,51 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
     setTheme(newTheme);
     localStorage.setItem('migration-stats-theme', newTheme);
   };
-  // Mock data - you can replace these with actual values
+  // Hardcoded Polkadot migration data - replace TBD with actual values
   const stats = {
     overview: {
-      totalDuration: '3h 13m 18s',
-      totalPallets: 25,
-      totalItemsMigrated: 841219,
-      totalAccountsMigrated: 348210,
-      startBlock: 30423691,
-      endBlock: 30425590,
+      totalDuration: '8h 39m 24s',
+      totalPallets: 23,
+      totalItemsMigrated: '2,103,186',
+      totalAccountsMigrated: '1,526,324',
+      startBlock: '28,490,502',
+      endBlock: '28,495,696',
     },
     xcm: {
-      dmpMessagesSent: 3043,
-      dmpMessagesProcessed: 3043,
-      dmpMessagesFailed: 0,
-      umpMessagesSent: 3067,
-      umpMessagesProcessed: 3067,
-      umpMessagesFailed: 0,
-      totalBytesTransferred: '117.96 MB',
+      dmpMessagesSent: '7405',
+      dmpMessagesProcessed: '7405',
+      dmpMessagesFailed: '0',
+      umpMessagesSent: '7405',
+      umpMessagesProcessed: '7405',
+      umpMessagesFailed: '0',
+      totalBytesTransferred: '283.21 MB',
     },
     balances: {
-      totalMigrated: '1,234,567.89 KSM',
-      totalKept: '20,350.77 KSM',
-      checkingAccount: '17,127,445.02 KSM',
-      totalIssuanceBefore: '163,847.79 KSM',
+      totalMigrated: '1,633,347,181.86 DOT',
+      totalKept: '150,134.15 DOT',
+      checkingAccount: '0.01 DOT',
+      totalIssuanceBefore: '11,303,377.67',
     },
     pallets: [
-      { name: 'Accounts', duration: 'Coming Soon', items: 348210 },
-      { name: 'MultiSig', duration: 'Coming Soon', items: 124 },
-      { name: 'Claims', duration: 'Coming Soon', items: 877 },
-      { name: 'Proxy', duration: 'Coming Soon', items: 1819 },
-      { name: 'Preimage', duration: 'Coming Soon', items: 443 },
-      { name: 'NomPools', duration: 'Coming Soon', items: 5191 },
-      { name: 'Vesting', duration: 'Coming Soon', items: 8 },
-      { name: 'DelegatedStaking', duration: 'Coming Soon', items: 3381 },
-      { name: 'Indices', duration: 'Coming Soon', items: 1189 },
-      { name: 'Referenda', duration: 'Coming Soon', items: 606 },
-      { name: 'BagsList', duration: 'Coming Soon', items: 15598 },
-      { name: 'Scheduler', duration: 'Coming Soon', items: 21 },
-      { name: 'ConvictionVoting', duration: 'Coming Soon', items: 31562 },
-      { name: 'Bounties', duration: 'Coming Soon', items: 26 },
-      { name: 'ChildBounties', duration: 'Coming Soon', items: 38 },
-      { name: 'AssetRate', duration: 'Coming Soon', items: 3 },
-      { name: 'Treasury', duration: 'Coming Soon', items: 12 },
-      { name: 'Recovery', duration: 'Coming Soon', items: 148 },
-      { name: 'Society', duration: 'Coming Soon', items: 1560 },
-      { name: 'Staking', duration: 'Coming Soon', items: 430501 },
+      { name: 'Accounts', duration: '5h 12m 49s', items: '1,526,324' },
+      { name: 'Multisig', duration: '0s', items: '0' },
+      { name: 'Claims', duration: '29s', items: '993' },
+      { name: 'Proxy', duration: '11s', items: '2,101' },
+      { name: 'Preimage', duration: '57s', items: '1,068' },
+      { name: 'NomPools', duration: '3m 59s', items: '47,270' },
+      { name: 'Vesting', duration: '3s', items: '863' },
+      { name: 'DelegatedStaking', duration: '2m 18s', items: '36,686' },
+      { name: 'Indices', duration: '41s', items: '3,396' },
+      { name: 'Referenda', duration: '48s', items: '1,783' },
+      { name: 'BagsList', duration: '2m 7s', items: '30,469' },
+      { name: 'Scheduler', duration: '24s', items: '21' },
+      { name: 'ConvictionVoting', duration: '3m 34s', items: '54,883' },
+      { name: 'Bounties', duration: '8s', items: '48' },
+      { name: 'ChildBounties', duration: '20s', items: '87' },
+      { name: 'AssetRate', duration: '11s', items: '6' },
+      { name: 'Crowdloan', duration: '29s', items: '2,484' },
+      { name: 'Treasury', duration: '16s', items: '212' },
+      { name: 'Staking', duration: '44m 33s', items: '394,492' },
     ],
   };
 
@@ -105,7 +104,7 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
             </>
           )}
         </button>
-        <h1 className="stats-title">Kusama Asset Hub Migration Statistics</h1>
+        <h1 className="stats-title">Polkadot Asset Hub Migration Statistics</h1>
         <p className="stats-subtitle">Complete overview of the migration process and results</p>
       </div>
 
@@ -123,19 +122,19 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Items Migrated</div>
-            <div className="stat-value">{stats.overview.totalItemsMigrated.toLocaleString()}</div>
+            <div className="stat-value">{typeof stats.overview.totalItemsMigrated === 'number' ? stats.overview.totalItemsMigrated.toLocaleString() : stats.overview.totalItemsMigrated}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Accounts Migrated</div>
-            <div className="stat-value">{stats.overview.totalAccountsMigrated.toLocaleString()}</div>
+            <div className="stat-value">{typeof stats.overview.totalAccountsMigrated === 'number' ? stats.overview.totalAccountsMigrated.toLocaleString() : stats.overview.totalAccountsMigrated}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Start Block</div>
-            <div className="stat-value">{stats.overview.startBlock.toLocaleString()}</div>
+            <div className="stat-value">{typeof stats.overview.startBlock === 'number' ? stats.overview.startBlock.toLocaleString() : stats.overview.startBlock}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">End Block</div>
-            <div className="stat-value">{stats.overview.endBlock.toLocaleString()}</div>
+            <div className="stat-value">{typeof stats.overview.endBlock === 'number' ? stats.overview.endBlock.toLocaleString() : stats.overview.endBlock}</div>
           </div>
         </div>
       </section>
@@ -149,11 +148,11 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-label">Messages Sent</div>
-                <div className="stat-value">{stats.xcm.dmpMessagesSent.toLocaleString()}</div>
+                <div className="stat-value">{typeof stats.xcm.dmpMessagesSent === 'number' ? stats.xcm.dmpMessagesSent.toLocaleString() : stats.xcm.dmpMessagesSent}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Messages Processed</div>
-                <div className="stat-value">{stats.xcm.dmpMessagesProcessed.toLocaleString()}</div>
+                <div className="stat-value">{typeof stats.xcm.dmpMessagesProcessed === 'number' ? stats.xcm.dmpMessagesProcessed.toLocaleString() : stats.xcm.dmpMessagesProcessed}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Messages Failed</div>
@@ -166,11 +165,11 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-label">Messages Sent</div>
-                <div className="stat-value">{stats.xcm.umpMessagesSent.toLocaleString()}</div>
+                <div className="stat-value">{typeof stats.xcm.umpMessagesSent === 'number' ? stats.xcm.umpMessagesSent.toLocaleString() : stats.xcm.umpMessagesSent}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Messages Processed</div>
-                <div className="stat-value">{stats.xcm.umpMessagesProcessed.toLocaleString()}</div>
+                <div className="stat-value">{typeof stats.xcm.umpMessagesProcessed === 'number' ? stats.xcm.umpMessagesProcessed.toLocaleString() : stats.xcm.umpMessagesProcessed}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Messages Failed</div>
@@ -227,7 +226,7 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
                 <tr key={index}>
                   <td className="pallet-name">{pallet.name}</td>
                   <td>{pallet.duration}</td>
-                  <td>{pallet.items.toLocaleString()}</td>
+                  <td>{typeof pallet.items === 'number' ? pallet.items.toLocaleString() : pallet.items}</td>
                 </tr>
               ))}
             </tbody>
@@ -238,4 +237,4 @@ const KusamaMigrationStats: React.FC<KusamaMigrationStatsProps> = ({ onBack }) =
   );
 };
 
-export default KusamaMigrationStats;
+export default PolkadotMigrationStats;
