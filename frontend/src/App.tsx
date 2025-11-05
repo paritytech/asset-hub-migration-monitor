@@ -1,22 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import MigrationStatus from './components/MigrationStatus';
-import PerPalletMigrationStatus from './components/PerPalletMigrationStatus';
-import XcmMessageMetrics from './components/XcmMessageMetrics';
-import BalanceVerification from './components/BalanceVerification';
-import BackendUrlInput from './components/BackendUrlInput';
-import KusamaMigrationBanner from './components/KusamaMigrationBanner';
 import KusamaMigrationStats from './components/KusamaMigrationStats';
-import { useEventSource, useBackendUrl } from './hooks/useEventSource';
-import type { EventType } from './hooks/useEventSource';
+import PolkadotMigrationStats from './components/PolkadotMigrationStats';
 import './App.css';
 import polkadotLogo from './assets/Polkadot_Token_Pink.png';
 
 function App() {
-  const [rcBlockNumber, setRcBlockNumber] = useState<number | null>(null);
-  const [ahBlockNumber, setAhBlockNumber] = useState<number | null>(null);
   const [currentRoute, setCurrentRoute] = useState<string>(window.location.hash || '#/');
-
-  const { backendUrl, setBackendUrl, isConnected } = useBackendUrl();
 
   // Handle hash change for routing
   useEffect(() => {
@@ -28,29 +17,11 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const handleEvent = useCallback((eventType: EventType, data: any) => {
-    if (eventType === 'rcHead' && data.blockNumber) {
-      setRcBlockNumber(data.blockNumber);
-    } else if (eventType === 'ahHead' && data.blockNumber) {
-      setAhBlockNumber(data.blockNumber);
-    }
-  }, []);
-
-  useEventSource(['rcHead', 'ahHead'], handleEvent);
-
-  const handleBackendUrlChange = useCallback((url: string) => {
-    setBackendUrl(url);
-  }, [setBackendUrl]);
-
-  const handleNavigateToStats = useCallback(() => {
-    window.location.hash = '#/kusama';
-  }, []);
-
   const handleNavigateBack = useCallback(() => {
     window.location.hash = '#/';
   }, []);
 
-  // Render stats page for /#/kusama route
+  // Render Kusama stats page
   if (currentRoute === '#/kusama') {
     return (
       <div className="app">
@@ -59,42 +30,78 @@ function App() {
     );
   }
 
-  // Render main dashboard
+  // Render Polkadot stats page
+  if (currentRoute === '#/polkadot') {
+    return (
+      <div className="app">
+        <PolkadotMigrationStats onBack={handleNavigateBack} />
+      </div>
+    );
+  }
+
+  // Render landing page with network selection
   return (
     <div className="app">
       <header>
         <div className="logo">
           <img src={polkadotLogo} alt="Polkadot Logo" />
-          <h1>Asset Hub Polkadot Migration Monitor</h1>
-        </div>
-        <div className="header-info">
-          {process.env.ALLOW_REMOTE_BACKEND === 'true' && (
-            <BackendUrlInput
-              currentUrl={backendUrl}
-              onUrlChange={handleBackendUrlChange}
-              isConnected={isConnected}
-            />
-          )}
-          <span className="timestamp">Last updated: {new Date().toLocaleString()}</span>
-          <div className="finalized-heads">
-            <div className="head-display">
-              <div className="head-status"></div>
-              <span className="head-label">RC Finalized:</span>
-              <span className="head-value">{rcBlockNumber?.toLocaleString() ?? 'Waiting...'}</span>
-            </div>
-            <div className="head-display">
-              <div className="head-status"></div>
-              <span className="head-label">AH Finalized:</span>
-              <span className="head-value">{ahBlockNumber?.toLocaleString() ?? 'Waiting...'}</span>
-            </div>
-          </div>
+          <h1>Asset Hub Migration Monitor</h1>
         </div>
       </header>
-      <main>
-        <MigrationStatus />
-        <PerPalletMigrationStatus />
-        <XcmMessageMetrics />
-        <BalanceVerification />
+      <main className="landing-main">
+        <div className="landing-container">
+          <h2 className="landing-title">Select Network</h2>
+          <p className="landing-subtitle">View migration statistics for Kusama or Polkadot Asset Hub</p>
+
+          <div className="success-banner">
+            <svg className="success-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <div className="success-content">
+              <h3 className="success-title">Migration Successfully Completed!</h3>
+              <p className="success-message">The Polkadot Asset Hub migration has been successfully completed. View detailed statistics for both networks below.</p>
+            </div>
+          </div>
+
+          <div className="network-cards">
+            <a href="#/kusama" className="network-card kusama-card">
+              <div className="network-card-header">
+                <h3>Kusama</h3>
+                <span className="network-badge">Completed</span>
+              </div>
+              <p className="network-description">View complete migration statistics for Kusama Asset Hub</p>
+              <div className="network-stats">
+                <div className="network-stat">
+                  <span className="stat-label">Pallets Migrated</span>
+                  <span className="stat-value">25</span>
+                </div>
+                <div className="network-stat">
+                  <span className="stat-label">Total Items</span>
+                  <span className="stat-value">841,219</span>
+                </div>
+              </div>
+            </a>
+
+            <a href="#/polkadot" className="network-card polkadot-card">
+              <div className="network-card-header">
+                <h3>Polkadot</h3>
+                <span className="network-badge">Completed</span>
+              </div>
+              <p className="network-description">View complete migration statistics for Polkadot Asset Hub</p>
+              <div className="network-stats">
+                <div className="network-stat">
+                  <span className="stat-label">Pallets Migrated</span>
+                  <span className="stat-value">19</span>
+                </div>
+                <div className="network-stat">
+                  <span className="stat-label">Total Items</span>
+                  <span className="stat-value">2,103,186</span>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
       </main>
       <footer className="app-footer">
         <div className="footer-content">
@@ -105,10 +112,6 @@ function App() {
             <span className="footer-separator">•</span>
             <a href="https://forum.polkadot.network/t/asset-hub-migration-2025/11129/53" target="_blank" rel="noopener noreferrer" className="footer-link">
               About
-            </a>
-            <span className="footer-separator">•</span>
-            <a href="#/kusama" className="footer-link" onClick={handleNavigateToStats}>
-              Kusama Migration Stats
             </a>
           </div>
           <div className="footer-copyright">
