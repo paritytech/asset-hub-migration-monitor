@@ -65,6 +65,24 @@ function App() {
           </div>
 
           <div className="network-cards">
+            <a href="#/polkadot" className="network-card polkadot-card">
+              <div className="network-card-header">
+                <h3>Polkadot</h3>
+                <span className="network-badge">Completed</span>
+              </div>
+              <p className="network-description">View complete migration statistics for Polkadot Asset Hub</p>
+              <div className="network-stats">
+                <div className="network-stat">
+                  <span className="stat-label">Pallets Migrated</span>
+                  <span className="stat-value">23</span>
+                </div>
+                <div className="network-stat">
+                  <span className="stat-label">Total Items</span>
+                  <span className="stat-value">2,103,186</span>
+                </div>
+              </div>
+            </a>
+
             <a href="#/kusama" className="network-card kusama-card">
               <div className="network-card-header">
                 <h3>Kusama</h3>
@@ -79,24 +97,6 @@ function App() {
                 <div className="network-stat">
                   <span className="stat-label">Total Items</span>
                   <span className="stat-value">841,219</span>
-                </div>
-              </div>
-            </a>
-
-            <a href="#/polkadot" className="network-card polkadot-card">
-              <div className="network-card-header">
-                <h3>Polkadot</h3>
-                <span className="network-badge">Completed</span>
-              </div>
-              <p className="network-description">View complete migration statistics for Polkadot Asset Hub</p>
-              <div className="network-stats">
-                <div className="network-stat">
-                  <span className="stat-label">Pallets Migrated</span>
-                  <span className="stat-value">19</span>
-                </div>
-                <div className="network-stat">
-                  <span className="stat-label">Total Items</span>
-                  <span className="stat-value">2,103,186</span>
                 </div>
               </div>
             </a>
